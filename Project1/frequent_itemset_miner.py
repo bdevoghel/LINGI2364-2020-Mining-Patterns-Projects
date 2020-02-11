@@ -79,11 +79,25 @@ def compute_support(dataset, levels):
 				if transaction_includes_itemset(transaction, itemset):
 					level[itemset] += 1
 
-def print_frequent_itemsets(levels, min_support, dataset):
-	for level in levels:
-		for itemset in level.keys():
-			if level[itemset] >= min_support:
-				print(str(list(itemset)) + ' (' + str(level[itemset]/dataset.trans_num()) + ')')
+def print_frequent_itemsets(level, dataset):
+	for itemset in level.keys():
+		if level[itemset] is not None:
+			print(str(list(itemset)) + ' (' + str(level[itemset]/dataset.trans_num()) + ')')
+
+def combine(itemset1, itemset2):
+	for elem in itemset2:
+		if elem not in itemset1:
+			itemset1 += (elem,)
+	return sorted(itemset1)
+
+def combine_itemsets(level):
+	for i, itemset1 in enumerate(level.keys()):
+		if level[itemset1] is None: continue
+		for j, itemset2 in enumerate(level.keys()):
+			if i >= j or level[itemset2] is None: continue
+			new_itemset = combine(itemset1, itemset2)
+			if len(new_itemset) > len(itemset1) + 1: break
+			yield new_itemset
 
 def apriori(filepath, minFrequency):
 	"""Runs the apriori algorithm on the specified file with the given minimum frequency"""
@@ -92,14 +106,20 @@ def apriori(filepath, minFrequency):
 
 	# levels = generate_candidates_naive(dataset)
 	prev_level = dict.fromkeys({tuple([x]) for x in dataset.items}, 0)
-	for transaction in dataset.transactions:
-		for itemset in prev_level.keys():
-			if transaction_includes_itemset(transaction, itemset):
-				level[itemset] += 1
+
+	while prev_level:
+		for transaction in dataset.transactions:
+			for itemset in prev_level.keys():
+				if transaction_includes_itemset(transaction, itemset):
+					prev_level[itemset] += 1
 	
-	for itemset in prev_level.keys():
-		if level[itemset] < min_support:
-			del level[itemset]
+		for itemset in prev_level.keys():
+			if prev_level[itemset] < min_support:
+				prev_level[itemset] = None
+		print_frequent_itemsets(prev_level, dataset)
+
+		next_level = dict.fromkeys({tuple(x) for x in combine_itemsets(prev_level)}, 0)
+		prev_level = next_level
 
 	# compute_support(dataset, levels)
 			
@@ -110,4 +130,4 @@ def alternative_miner(filepath, minFrequency):
 	# TODO: either second implementation of the apriori algorithm or implementation of the depth first search algorithm
 	apriori(filepath, minFrequency)
 
-apriori("Datasets/test.dat", 0.125)
+apriori("Datasets/toy.dat", 0.125)
