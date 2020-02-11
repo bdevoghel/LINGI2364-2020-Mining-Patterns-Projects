@@ -88,22 +88,13 @@ def print_frequent_itemsets(levels, min_support, dataset):
 def apriori(filepath, minFrequency):
 	"""Runs the apriori algorithm on the specified file with the given minimum frequency"""
 	dataset = Dataset(filepath)
-	min_support = minFrequency * dataset.trans_num()
 
-	# levels = generate_candidates_naive(dataset)
-	prev_level = dict.fromkeys({tuple([x]) for x in dataset.items}, 0)
-	for transaction in dataset.transactions:
-		for itemset in prev_level.keys():
-			if transaction_includes_itemset(transaction, itemset):
-				level[itemset] += 1
-	
-	for itemset in prev_level.keys():
-		if level[itemset] < min_support:
-			del level[itemset]
+	levels = generate_candidates_naive(dataset)
 
-	# compute_support(dataset, levels)
+	compute_support(dataset, levels)
 			
-	# print_frequent_itemsets(levels, min_support, dataset)
+	min_support = minFrequency * dataset.trans_num()
+	print_frequent_itemsets(levels, min_support, dataset)
 
 def alternative_miner(filepath, minFrequency):
 	"""Runs the alternative frequent itemset mining algorithm on the specified file with the given minimum frequency"""
