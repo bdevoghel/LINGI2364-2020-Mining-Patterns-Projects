@@ -100,3 +100,5 @@ def alternative_miner(filepath, minFrequency):
 	"""Runs the alternative frequent itemset mining algorithm on the specified file with the given minimum frequency"""
 	# TODO: either second implementation of the apriori algorithm or implementation of the depth first search algorithm
 	apriori(filepath, minFrequency)
+
+apriori("Datasets/test.dat", 0.125)
