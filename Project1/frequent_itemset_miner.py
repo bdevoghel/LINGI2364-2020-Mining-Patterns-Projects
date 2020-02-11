@@ -56,15 +56,31 @@ class Dataset:
 
 def apriori(filepath, minFrequency):
 	"""Runs the apriori algorithm on the specified file with the given minimum frequency"""
-	# TODO: implementation of the apriori algorithm
 	dataset = Dataset(filepath)
-	numberItems = dataset.items_num()
-	numberTransaction = dataset.trans_num()
-	minSupport = minFrequency * numberTransaction
 	
-	print(minSupport)
-	print(dataset.get_transaction(3))
-	print("Not implemented")
+	levels = [{(None):dataset.trans_num()}, dict.fromkeys({(x) for x in dataset.items}, None)]
+	print(levels)
+	for i in range(dataset.items_num()-1):
+		for previous_itemset in levels[-1].keys():
+			print(previous_itemset)
+			for x in dataset.items:
+				if x in [previous_itemset]: continue
+				s = set([previous_itemset])
+				s.add(x)
+				t = tuple(s)
+				levels += [dict.fromkeys({t}, None)]
+
+
+	print(levels)
+
+
+	# numberItems = dataset.items_num()
+	# numberTransaction = dataset.trans_num()
+	# minSupport = minFrequency * numberTransaction
+	
+	# print(minSupport)
+	# print(dataset.get_transaction(3))
+	# print("Not implemented")
 
 
 def alternative_miner(filepath, minFrequency):
