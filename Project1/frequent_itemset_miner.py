@@ -54,29 +54,33 @@ class Dataset:
 		return self.transactions[i]
 
 
+def generate_candidates_naive(dataset):
+		levels = [{} for x in range(dataset.items_num() + 1)]
+		levels[0] = {(None):dataset.trans_num()}
+		levels[1] = dict.fromkeys({tuple([x]) for x in dataset.items}, None)
+		
+		print(levels)
+		for i in range(2,dataset.items_num()+1):
+			for previous_itemset in levels[i-1].keys():
+				for x in dataset.items:
+					if x in previous_itemset: continue
+					levels[i][tuple(sorted(previous_itemset + (x,)))] = None
+		
+		return levels
+
 def apriori(filepath, minFrequency):
 	"""Runs the apriori algorithm on the specified file with the given minimum frequency"""
 	dataset = Dataset(filepath)
+
+	levels = generate_candidates_naive(dataset)
+
 	
-	levels = [{} for x in range(dataset.items_num() + 1)]
-	levels[0] = {(None):dataset.trans_num()}
-	levels[1] = dict.fromkeys({tuple([x]) for x in dataset.items}, None)
 	
 	print(levels)
-	for i in range(2,dataset.items_num()+1):
-		for previous_itemset in levels[i-1].keys():
-			for x in dataset.items:
-				if x in previous_itemset: continue
-				levels[i][tuple(sorted(previous_itemset + (x,)))] = None
 
-
-	print(levels)
-
-
-	# numberItems = dataset.items_num()
-	# numberTransaction = dataset.trans_num()
-	# minSupport = minFrequency * numberTransaction
+	minSupport = minFrequency * dataset.trans_num()
 	
+
 	# print(minSupport)
 	# print(dataset.get_transaction(3))
 	# print("Not implemented")
