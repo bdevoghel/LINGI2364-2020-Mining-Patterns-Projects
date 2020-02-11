@@ -55,18 +55,35 @@ class Dataset:
 
 
 def generate_candidates_naive(dataset):
-		levels = [{} for x in range(dataset.items_num() + 1)]
-		levels[0] = {(None):dataset.trans_num()}
-		levels[1] = dict.fromkeys({tuple([x]) for x in dataset.items}, None)
+		levels = [{} for x in range(dataset.items_num())]
+		levels[0] = dict.fromkeys({tuple([x]) for x in dataset.items}, 0)
 		
-		print(levels)
-		for i in range(2,dataset.items_num()+1):
+		for i in range(1,dataset.items_num()):
 			for previous_itemset in levels[i-1].keys():
 				for x in dataset.items:
 					if x in previous_itemset: continue
-					levels[i][tuple(sorted(previous_itemset + (x,)))] = None
+					levels[i][tuple(sorted(previous_itemset + (x,)))] = 0
 		
 		return levels
+
+def transaction_includes_itemset(transaction, itemset):
+	for item in itemset:
+		if item not in transaction:
+			return False
+	return True
+
+def compute_support(dataset, levels):
+	for level in levels:
+		for transaction in dataset.transactions:
+			for itemset in level.keys():
+				if transaction_includes_itemset(transaction, itemset):
+					level[itemset] += 1
+
+def print_frequent_itemsets(levels, min_support, dataset):
+	for level in levels:
+		for itemset in level.keys():
+			if level[itemset] >= min_support:
+				print(str(list(itemset)) + ' (' + str(level[itemset]/dataset.trans_num()) + ')')
 
 def apriori(filepath, minFrequency):
 	"""Runs the apriori algorithm on the specified file with the given minimum frequency"""
@@ -74,21 +91,12 @@ def apriori(filepath, minFrequency):
 
 	levels = generate_candidates_naive(dataset)
 
-	
-	
-	print(levels)
-
-	minSupport = minFrequency * dataset.trans_num()
-	
-
-	# print(minSupport)
-	# print(dataset.get_transaction(3))
-	# print("Not implemented")
-
+	compute_support(dataset, levels)
+			
+	min_support = minFrequency * dataset.trans_num()
+	print_frequent_itemsets(levels, min_support, dataset)
 
 def alternative_miner(filepath, minFrequency):
 	"""Runs the alternative frequent itemset mining algorithm on the specified file with the given minimum frequency"""
 	# TODO: either second implementation of the apriori algorithm or implementation of the depth first search algorithm
-	print("Not implemented")
-
-apriori("Datasets/toy.dat", 0.5)
+	apriori(filepath, minFrequency)
