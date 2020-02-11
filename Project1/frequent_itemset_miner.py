@@ -58,17 +58,21 @@ def apriori(filepath, minFrequency):
 	"""Runs the apriori algorithm on the specified file with the given minimum frequency"""
 	dataset = Dataset(filepath)
 	
-	levels = [{(None):dataset.trans_num()}, dict.fromkeys({(x) for x in dataset.items}, None)]
+	levels = [{} for x in range(dataset.items_num() + 1)]
+	levels[0] = {(None):dataset.trans_num()}
+	levels[1] = dict.fromkeys({(x) for x in dataset.items}, None)
+
 	print(levels)
-	for i in range(dataset.items_num()-1):
-		for previous_itemset in levels[-1].keys():
-			print(previous_itemset)
+	levels[-1]['a'] = 1
+	print(levels)
+	for i in range(2,dataset.items_num()+1):
+		for previous_itemset in levels[i-1].keys():
 			for x in dataset.items:
 				if x in [previous_itemset]: continue
 				s = set([previous_itemset])
 				s.add(x)
 				t = tuple(s)
-				levels += [dict.fromkeys({t}, None)]
+				levels[i][t] = None
 
 
 	print(levels)
