@@ -60,19 +60,14 @@ def apriori(filepath, minFrequency):
 	
 	levels = [{} for x in range(dataset.items_num() + 1)]
 	levels[0] = {(None):dataset.trans_num()}
-	levels[1] = dict.fromkeys({(x) for x in dataset.items}, None)
-
-	print(levels)
-	levels[-1]['a'] = 1
+	levels[1] = dict.fromkeys({tuple([x]) for x in dataset.items}, None)
+	
 	print(levels)
 	for i in range(2,dataset.items_num()+1):
 		for previous_itemset in levels[i-1].keys():
 			for x in dataset.items:
-				if x in [previous_itemset]: continue
-				s = set([previous_itemset])
-				s.add(x)
-				t = tuple(s)
-				levels[i][t] = None
+				if x in previous_itemset: continue
+				levels[i][tuple(sorted(previous_itemset + (x,)))] = None
 
 
 	print(levels)
