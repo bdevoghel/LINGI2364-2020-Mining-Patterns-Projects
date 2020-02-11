@@ -54,30 +54,11 @@ class Dataset:
 		return self.transactions[i]
 
 
-def generate_candidates_naive(dataset):
-		levels = [{} for x in range(dataset.items_num())]
-		levels[0] = dict.fromkeys({tuple([x]) for x in dataset.items}, 0)
-		
-		for i in range(1,dataset.items_num()):
-			for previous_itemset in levels[i-1].keys():
-				for x in dataset.items:
-					if x in previous_itemset: continue
-					levels[i][tuple(sorted(previous_itemset + (x,)))] = 0
-		
-		return levels
-
 def transaction_includes_itemset(transaction, itemset):
 	for item in itemset:
 		if item not in transaction:
 			return False
 	return True
-
-def compute_support(dataset, levels):
-	for level in levels:
-		for transaction in dataset.transactions:
-			for itemset in level.keys():
-				if transaction_includes_itemset(transaction, itemset):
-					level[itemset] += 1
 
 def print_frequent_itemsets(level, dataset):
 	for itemset in level.keys():
@@ -90,44 +71,45 @@ def combine(itemset1, itemset2):
 			itemset1 += (elem,)
 	return sorted(itemset1)
 
-def combine_itemsets(level):
+def combine_frequent_itemsets(level):
+	result = []
 	for i, itemset1 in enumerate(level.keys()):
 		if level[itemset1] is None: continue
 		for j, itemset2 in enumerate(level.keys()):
 			if i >= j or level[itemset2] is None: continue
 			new_itemset = combine(itemset1, itemset2)
-			if len(new_itemset) > len(itemset1) + 1: break
-			yield new_itemset
+			if len(new_itemset) > len(itemset1) + 1: continue # TODO should break if itemsets are sorted
+			result += [new_itemset]
+	return sorted(result)
 
 def apriori(filepath, minFrequency):
 	"""Runs the apriori algorithm on the specified file with the given minimum frequency"""
 	dataset = Dataset(filepath)
 	min_support = minFrequency * dataset.trans_num()
 
-	# levels = generate_candidates_naive(dataset)
 	prev_level = dict.fromkeys({tuple([x]) for x in dataset.items}, 0)
 
 	while prev_level:
+
+		## COMPUTE SUPPORT OF ITEMSETS IN PREV_LEVEL
 		for transaction in dataset.transactions:
 			for itemset in prev_level.keys():
 				if transaction_includes_itemset(transaction, itemset):
 					prev_level[itemset] += 1
-	
+		
+		## PRINT FREQUENT ITEMSETS
 		for itemset in prev_level.keys():
 			if prev_level[itemset] < min_support:
 				prev_level[itemset] = None
 		print_frequent_itemsets(prev_level, dataset)
 
-		next_level = dict.fromkeys({tuple(x) for x in combine_itemsets(prev_level)}, 0)
+		## GENERATE CANDIDATES FOR NEXT LEVEL
+		next_level = dict.fromkeys({tuple(x) for x in combine_frequent_itemsets(prev_level)}, 0)
 		prev_level = next_level
-
-	# compute_support(dataset, levels)
-			
-	# print_frequent_itemsets(levels, min_support, dataset)
 
 def alternative_miner(filepath, minFrequency):
 	"""Runs the alternative frequent itemset mining algorithm on the specified file with the given minimum frequency"""
 	# TODO: either second implementation of the apriori algorithm or implementation of the depth first search algorithm
 	apriori(filepath, minFrequency)
 
-apriori("Datasets/toy.dat", 0.125)
+# apriori("Datasets/chess.dat", 0.9)
