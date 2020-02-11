@@ -57,6 +57,13 @@ class Dataset:
 def apriori(filepath, minFrequency):
 	"""Runs the apriori algorithm on the specified file with the given minimum frequency"""
 	# TODO: implementation of the apriori algorithm
+	dataset = Dataset(filepath)
+	numberItems = dataset.items_num()
+	numberTransaction = dataset.trans_num()
+	minSupport = minFrequency * numberTransaction
+	
+	print(minSupport)
+	print(dataset.get_transaction(3))
 	print("Not implemented")
 
 
@@ -64,3 +71,5 @@ def alternative_miner(filepath, minFrequency):
 	"""Runs the alternative frequent itemset mining algorithm on the specified file with the given minimum frequency"""
 	# TODO: either second implementation of the apriori algorithm or implementation of the depth first search algorithm
 	print("Not implemented")
+
+apriori("Datasets/toy.dat", 0.5)
