@@ -28,7 +28,8 @@ class Dataset:
 	def __init__(self, filepath):
 		"""reads the dataset file and initializes files"""
 		self.transactions = list()
-		self.items = set()
+		# self.items = set()
+		self.first_level = {}
 
 		try:
 			lines = [line.strip() for line in open(filepath, "r")]
@@ -37,7 +38,11 @@ class Dataset:
 				transaction = list(map(int, line.split(" ")))
 				self.transactions.append(transaction)
 				for item in transaction:
-					self.items.add(item)
+					# self.items.add(item)
+					if tuple([item]) not in self.first_level:
+						self.first_level[tuple([item])] = 1
+					else:
+						self.first_level[tuple([item])] +=1
 		except IOError as e:
 			print("Unable to read dataset file!\n" + e)
 
@@ -47,11 +52,18 @@ class Dataset:
 
 	def items_num(self):
 		"""Returns the number of different items in the dataset"""
-		return len(self.items)
+		# return len(self.items)
+		return len(self.first_level)
 
 	def get_transaction(self, i):
 		"""Returns the transaction at index i as an int array"""
 		return self.transactions[i]
+
+	def get_first_level(self):
+		return self.first_level
+
+	def get_items(self):
+		return self.first_level.keys()
 
 
 def transaction_includes_itemset(transaction, itemset): # TODO time-consuming
@@ -84,15 +96,20 @@ def apriori(filepath, minFrequency):
 	"""Runs the apriori algorithm on the specified file with the given minimum frequency"""
 	dataset = Dataset(filepath)
 
-	prev_level = dict.fromkeys({tuple([x]) for x in dataset.items}, 0)
+	#prev_level = dict.fromkeys({tuple([x]) for x in dataset.get_items()}, 0)
+	prev_level = dataset.get_first_level()
+	first_level = True
 
 	while prev_level:
 
 		# COMPUTE SUPPORT OF ITEMSETS IN PREV_LEVEL
-		for transaction in dataset.transactions:
-			for itemset in prev_level.keys():
-				if transaction_includes_itemset(transaction, itemset):
-					prev_level[itemset] += 1
+		if not first_level:
+			for transaction in dataset.transactions:
+				for itemset in prev_level.keys():
+					if transaction_includes_itemset(transaction, itemset):
+						prev_level[itemset] += 1
+		else:
+			first_level = False
 		
 		# PRINT FREQUENT ITEMSETS
 		min_support = minFrequency * dataset.trans_num()
@@ -110,4 +127,4 @@ def alternative_miner(filepath, minFrequency):
 	# TODO: either second implementation of the apriori algorithm or implementation of the depth first search algorithm
 	apriori(filepath, minFrequency)
 
-# apriori("Datasets/chess.dat", 0.9)
+#apriori("Datasets/toy.dat", 0.125)
