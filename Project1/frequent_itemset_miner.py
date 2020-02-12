@@ -28,8 +28,7 @@ class Dataset:
 	def __init__(self, filepath):
 		"""reads the dataset file and initializes files"""
 		self.transactions = list()
-		# self.items = set()
-		self.first_level = {}
+		self.items = {}
 
 		try:
 			lines = [line.strip() for line in open(filepath, "r")]
@@ -39,10 +38,10 @@ class Dataset:
 				self.transactions.append(transaction)
 				for item in transaction:
 					# self.items.add(item)
-					if tuple([item]) not in self.first_level:
-						self.first_level[tuple([item])] = 1
+					if (item,) not in self.items:
+						self.items[(item,)] = 1
 					else:
-						self.first_level[tuple([item])] +=1
+						self.items[(item,)] +=1
 		except IOError as e:
 			print("Unable to read dataset file!\n" + e)
 
@@ -52,18 +51,17 @@ class Dataset:
 
 	def items_num(self):
 		"""Returns the number of different items in the dataset"""
-		# return len(self.items)
-		return len(self.first_level)
+		return len(self.items)
 
 	def get_transaction(self, i):
 		"""Returns the transaction at index i as an int array"""
 		return self.transactions[i]
 
 	def get_first_level(self):
-		return self.first_level
+		return self.items
 
 	def get_items(self):
-		return self.first_level.keys()
+		return self.items.keys()
 
 
 def transaction_includes_itemset(transaction, itemset): # TODO time-consuming
@@ -127,4 +125,4 @@ def alternative_miner(filepath, minFrequency):
 	# TODO: either second implementation of the apriori algorithm or implementation of the depth first search algorithm
 	apriori(filepath, minFrequency)
 
-#apriori("Datasets/toy.dat", 0.125)
+# apriori("Datasets/test.dat", 0.7)
