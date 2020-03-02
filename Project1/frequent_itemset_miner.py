@@ -125,4 +125,28 @@ def alternative_miner(filepath, minFrequency):
 	# TODO: either second implementation of the apriori algorithm or implementation of the depth first search algorithm
 	apriori(filepath, minFrequency)
 
-# apriori("Datasets/test.dat", 0.7)
+def run_perf_tests():
+	from time import time
+
+	log = "\t\t\t     apriori() \t alternative_miner()\n"
+	tested_datasets = ["accidents.dat", "chess.dat", "mushroom.dat", "retail.dat"]
+	tested_frequencies = [.9, .8, .7, .6, .5, .4, .3, .2, .1]
+
+	for dataset in tested_datasets:
+		for min_freq in tested_frequencies:
+			start = time()
+			apriori("Datasets/" + dataset, min_freq)
+			mid = time()
+			# alternative_miner("Datasets/" + dataset, min_freq)
+			end = time()
+			log += dataset + "\t\t" + str(min_freq) + "\t\t" + "{:.2f}".format(mid-start) + "\t\t" + "{:.2f}".format(end-mid) + "\n"
+			
+			if mid - start > 80 : break
+	
+	log_file = open('log.txt', 'a') 
+	print(log, file=log_file)
+	log_file.close() 
+
+
+# apriori("Datasets/connect.dat", 0.9)
+run_perf_tests()
