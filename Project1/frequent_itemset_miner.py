@@ -20,30 +20,43 @@ Do not change the signature of the apriori and alternative_miner methods as they
 
 __authors__ = "Group 10 - MERSCH-MERSCH Severine & DE VOGHEL Brieuc"
 """
-
+from copy import copy
 
 class Dataset:
 	"""Utility class to manage a dataset stored in a external file."""
 
-	def __init__(self, filepath):
+	def __init__(self, filepath, vertical=False):
 		"""reads the dataset file and initializes files"""
+
 		self.transactions = list()
 		self.items = {}
+		self.items_appearance = {}
+		self.projection = []
 
 		try:
 			lines = [line.strip() for line in open(filepath, "r")]
 			lines = [line for line in lines if line]  # Skipping blank lines
+			i = 0
 			for line in lines:
 				transaction = list(map(int, line.split(" ")))
 				self.transactions.append(transaction)
 				for item in transaction:
 					# self.items.add(item)
-					if (item,) not in self.items:
-						self.items[(item,)] = 1
+					if not vertical:
+						if (item,) not in self.items:
+							self.items[(item,)] = 1
+						else:
+							self.items[(item,)] +=1
 					else:
-						self.items[(item,)] +=1
+						if item not in self.items_appearance:
+							self.items_appearance[item] = [i]
+						else:
+							self.items_appearance[item].append(i)
+				i += 1
 		except IOError as e:
 			print("Unable to read dataset file!\n" + e)
+
+
 
 	def trans_num(self):
 		"""Returns the number of transactions in the dataset"""
@@ -92,7 +105,7 @@ def combine_frequent_itemsets(level):
 
 def apriori(filepath, minFrequency):
 	"""Runs the apriori algorithm on the specified file with the given minimum frequency"""
-	dataset = Dataset(filepath)
+	dataset = Dataset(filepath, vertical=False)
 
 	#prev_level = dict.fromkeys({tuple([x]) for x in dataset.get_items()}, 0)
 	prev_level = dataset.get_first_level()
@@ -120,9 +133,36 @@ def apriori(filepath, minFrequency):
 		next_level = dict.fromkeys({tuple(x) for x in combine_frequent_itemsets(prev_level)}, 0)
 		prev_level = next_level
 
+def print_frequent_itemset_from_projected_database(dataset, item, nb_transactions):
+	itemset = copy(dataset.projection)
+	itemset.append(item)
+	print(str(itemset) + ' (' + str(len(dataset.items_appearance[item])/nb_transactions) + ')')
+
 def alternative_miner(filepath, minFrequency):
 	"""Runs the alternative frequent itemset mining algorithm on the specified file with the given minimum frequency"""
 	# TODO: either second implementation of the apriori algorithm or implementation of the depth first search algorithm
-	apriori(filepath, minFrequency)
+	dataset = Dataset(filepath, vertical=True)
+	min_support = minFrequency * dataset.trans_num()
 
-# apriori("Datasets/test.dat", 0.7)
+	projected_database = {}
+	for item in dataset.items_appearance:
+		if len(dataset.items_appearance[item]) > min_support:
+			projected_database
+			print_frequent_itemset_from_projected_database(dataset, item, dataset.trans_num())
+
+
+	itemset = dataset.get_first_level()
+	projectedD = None
+
+	DFS(itemset, projectedD)
+
+
+def DFS(itemset, projectedD):
+	pass
+
+
+
+
+
+#apriori("Datasets/toy.dat", 0.125)
+alternative_miner("Datasets/toy.dat", 0.125)
