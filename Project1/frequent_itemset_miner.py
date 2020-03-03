@@ -20,43 +20,69 @@ Do not change the signature of the apriori and alternative_miner methods as they
 
 __authors__ = "Group 10 - MERSCH-MERSCH Severine & DE VOGHEL Brieuc"
 """
-from copy import copy
+from copy import copy, deepcopy
 
 class Dataset:
 	"""Utility class to manage a dataset stored in a external file."""
 
-	def __init__(self, filepath, vertical=False):
+	def __init__(self, filepath, vertical=False, projection=None):
 		"""reads the dataset file and initializes files"""
+
+		if projection is not None:
+			# Not important
+			self.transactions = None
+			self.items = None
+
+			initial, itemset, min_support = projection # original dataset and itemset on which projection is done
+
+			self.projection = copy(initial.projection)
+			self.projection.append(itemset)
+
+			self.tid_list = []
+			for i, tid in enumerate(initial.tid_list):
+				if tid[0] < itemset: continue
+				if tid[0] == itemset: i_projection = i; continue
+				count = 0
+				t_projected = []
+				for t in tid[1]:
+					if t in initial.tid_list[i_projection][1]:
+						t_projected.append(t)
+						count += 1
+				if count >= min_support:
+					self.tid_list.append( (tid[0], t_projected) )
+			return
+
 
 		self.transactions = list()
 		self.items = {}
-		self.items_appearance = {}
-		self.projection = []
+
+		if vertical:
+			self.projection = []
+			self.tid_list = [] # sorted list of transaction identifiers
 
 		try:
 			lines = [line.strip() for line in open(filepath, "r")]
 			lines = [line for line in lines if line]  # Skipping blank lines
-			i = 0
-			for line in lines:
+			for i, line in enumerate(lines):
 				transaction = list(map(int, line.split(" ")))
 				self.transactions.append(transaction)
 				for item in transaction:
-					# self.items.add(item)
-					if not vertical:
-						if (item,) not in self.items:
-							self.items[(item,)] = 1
-						else:
-							self.items[(item,)] +=1
+					if (item,) not in self.items:
+						self.items[ (item,) ] = 1
+						if vertical:
+							self.tid_list.append( (item, [i]) )
 					else:
-						if item not in self.items_appearance:
-							self.items_appearance[item] = [i]
-						else:
-							self.items_appearance[item].append(i)
-				i += 1
+						self.items[(item,)] +=1
+						if vertical:
+							for j, tid in enumerate(self.tid_list):
+								if tid[0] == item:
+									self.tid_list[j][1].append(i)
+
+			if vertical:
+				self.tid_list.sort(key=lambda tid: tid[0])
+			
 		except IOError as e:
 			print("Unable to read dataset file!\n" + e)
-
-
 
 	def trans_num(self):
 		"""Returns the number of transactions in the dataset"""
@@ -76,17 +102,21 @@ class Dataset:
 	def get_items(self):
 		return self.items.keys()
 
+	def project(self, item, min_support):
+		projection = Dataset("NO PATH", projection=(self, item, min_support))
+		return projection
 
-def transaction_includes_itemset(transaction, itemset): # TODO time-consuming
+
+def transaction_includes_itemset(transaction, itemset): # TODO optimise (is very often called)
 	for item in itemset:
 		if item not in transaction:
 			return False
 	return True
 
-def print_frequent_itemsets(level, dataset):
+def print_frequent_itemsets_from_level(level, nb_transactions):
 	for itemset in level.keys():
 		if level[itemset] is not None:
-			print(str(list(itemset)) + ' (' + str(level[itemset]/dataset.trans_num()) + ')')
+			print(str(list(itemset)) + ' (' + str(level[itemset]/nb_transactions) + ')')
 
 def combine(itemset1, itemset2):
 	for elem in itemset2:
@@ -100,14 +130,15 @@ def combine_frequent_itemsets(level):
 		for j, itemset2 in enumerate(level.keys()):
 			if i >= j or level[itemset2] is None: continue
 			new_itemset = combine(itemset1, itemset2)
-			if len(new_itemset) > len(itemset1) + 1: continue # TODO should break if itemsets are sorted
+			if len(new_itemset) > len(itemset1) + 1: continue # TODO should break (only if itemsets are sorted)
 			yield new_itemset
+
 
 def apriori(filepath, minFrequency):
 	"""Runs the apriori algorithm on the specified file with the given minimum frequency"""
-	dataset = Dataset(filepath, vertical=False)
+	dataset = Dataset(filepath)
+	min_support = minFrequency * dataset.trans_num()
 
-	#prev_level = dict.fromkeys({tuple([x]) for x in dataset.get_items()}, 0)
 	prev_level = dataset.get_first_level()
 	first_level = True
 
@@ -123,51 +154,44 @@ def apriori(filepath, minFrequency):
 			first_level = False
 		
 		# PRINT FREQUENT ITEMSETS
-		min_support = minFrequency * dataset.trans_num()
 		for itemset in prev_level.keys():
 			if prev_level[itemset] < min_support:
 				prev_level[itemset] = None
-		print_frequent_itemsets(prev_level, dataset)
+		print_frequent_itemsets_from_level(prev_level, dataset.trans_num())
 
 		# GENERATE CANDIDATES FOR NEXT LEVEL
 		next_level = dict.fromkeys({tuple(x) for x in combine_frequent_itemsets(prev_level)}, 0)
 		prev_level = next_level
 
-def print_frequent_itemset_from_projected_database(dataset, item, nb_transactions):
-	itemset = copy(dataset.projection)
-	itemset.append(item)
-	print(str(itemset) + ' (' + str(len(dataset.items_appearance[item])/nb_transactions) + ')')
+
+def eclat(dataset, min_support, nb_transactions):
+	for tid in dataset.tid_list:
+		if len(tid[1]) >= min_support:
+			print_frequent_itemset_from_tid(tid, dataset.projection, nb_transactions)
+			 
+			projected_dataset = dataset.project(tid[0], min_support)
+			eclat(projected_dataset, min_support, nb_transactions)
+
+def print_frequent_itemset_from_tid(tid, projection, nb_transactions):
+	itemset = copy(projection)
+	itemset.append(tid[0])
+	print(str(itemset) + ' (' + str(len(tid[1])/nb_transactions) + ')')
 
 def alternative_miner(filepath, minFrequency):
 	"""Runs the alternative frequent itemset mining algorithm on the specified file with the given minimum frequency"""
-	# TODO: either second implementation of the apriori algorithm or implementation of the depth first search algorithm
+	# implementation of the depth first search ECLAT algorithm
 	dataset = Dataset(filepath, vertical=True)
-	min_support = minFrequency * dataset.trans_num()
+	nb_transactions = dataset.trans_num()
+	min_support = minFrequency * nb_transactions
 
-	projected_database = {}
-	for item in dataset.items_appearance:
-		if len(dataset.items_appearance[item]) > min_support:
-			projected_database
-			print_frequent_itemset_from_projected_database(dataset, item, dataset.trans_num())
-
-
-	itemset = dataset.get_first_level()
-	projectedD = None
-
-	DFS(itemset, projectedD)
-
-
-def DFS(itemset, projectedD):
-	pass
-
-
-
+	eclat(dataset, min_support, nb_transactions)
 
 
 def run_perf_tests():
 	from time import time
 
-	log = "\t\t\t     apriori() \t alternative_miner()\n"
+	log_file = open('log.txt', 'a') 
+	print("\t\t\t     apriori() \t alternative_miner()", file=log_file)
 	tested_datasets = ["accidents.dat", "chess.dat", "mushroom.dat", "retail.dat"]
 	tested_frequencies = [.9, .8, .7, .6, .5, .4, .3, .2, .1]
 
@@ -178,15 +202,13 @@ def run_perf_tests():
 			mid = time()
 			alternative_miner("Datasets/" + dataset, min_freq)
 			end = time()
-			log += dataset + "\t\t" + str(min_freq) + "\t\t" + "{:.2f}".format(mid-start) + "\t\t" + "{:.2f}".format(end-mid) + "\n"
+			print(dataset + "\t\t" + str(min_freq) + "\t\t" + "{:.2f}".format(mid-start) + "\t\t" + "{:.2f}".format(end-mid), file=log_file)
 			
-			if mid - start > 80 : break
+			if end - start > 120 : break
 	
-	log_file = open('log.txt', 'a') 
-	print(log, file=log_file)
 	log_file.close() 
 
 
-# apriori("Datasets/connect.dat", 0.9)
-alternative_miner("Datasets/toy.dat", 0.125)
-# run_perf_tests()
+# apriori("Datasets/toy.dat", 0.125)
+# alternative_miner("Datasets/toy.dat", 0.125)
+run_perf_tests()
