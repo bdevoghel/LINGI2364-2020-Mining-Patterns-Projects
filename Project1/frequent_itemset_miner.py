@@ -33,56 +33,56 @@ class Dataset:
 			self.transactions = None
 			self.items = None
 
-			initial, itemset, min_support = projection # original dataset and itemset on which projection is done
+			initial, item, min_support = projection # original dataset and item on which projection is done
 
 			self.projection = copy(initial.projection)
-			self.projection.append(itemset)
+			self.projection.append(item)
 
 			self.tid_list = []
 			for i, tid in enumerate(initial.tid_list):
-				if tid[0] < itemset: continue
-				if tid[0] == itemset: i_projection = i; continue
-				count = 0
+				if tid[0] < item: continue
+				if tid[0] == item:
+					i_projection = i
+					continue
+
 				t_projected = []
 				for t in tid[1]:
 					if t in initial.tid_list[i_projection][1]:
 						t_projected.append(t)
-						count += 1
-				if count >= min_support:
+
+				if len(t_projected) >= min_support:
 					self.tid_list.append( (tid[0], t_projected) )
-			return
+		else :
 
-
-		self.transactions = list()
-		self.items = {}
-
-		if vertical:
-			self.projection = []
-			self.tid_list = [] # sorted list of transaction identifiers
-
-		try:
-			lines = [line.strip() for line in open(filepath, "r")]
-			lines = [line for line in lines if line]  # Skipping blank lines
-			for i, line in enumerate(lines):
-				transaction = list(map(int, line.split(" ")))
-				self.transactions.append(transaction)
-				for item in transaction:
-					if (item,) not in self.items:
-						self.items[ (item,) ] = 1
-						if vertical:
-							self.tid_list.append( (item, [i]) )
-					else:
-						self.items[(item,)] +=1
-						if vertical:
-							for j, tid in enumerate(self.tid_list):
-								if tid[0] == item:
-									self.tid_list[j][1].append(i)
+			self.transactions = list()
+			self.items = {}
 
 			if vertical:
-				self.tid_list.sort(key=lambda tid: tid[0])
-			
-		except IOError as e:
-			print("Unable to read dataset file!\n" + e)
+				self.projection = []
+				self.tid_list = {} # transaction identifiers
+
+			try:
+				lines = [line.strip() for line in open(filepath, "r")]
+				lines = [line for line in lines if line]  # Skipping blank lines
+				for i, line in enumerate(lines):
+					transaction = list(map(int, line.split(" ")))
+					self.transactions.append(transaction)
+					for item in transaction:
+						if (item,) not in self.items:
+							self.items[ (item,) ] = 1
+							if vertical:
+								self.tid_list[item] = [i]
+						else:
+							self.items[(item,)] +=1
+							if vertical:
+								self.tid_list[item].append(i) # TODO make sorted dict
+
+				if vertical:
+					self.tid_list = list(self.tid_list.items())
+					self.tid_list.sort(key=lambda tid: tid[0])
+				
+			except IOError as e:
+				print("Unable to read dataset file!\n" + e)
 
 	def trans_num(self):
 		"""Returns the number of transactions in the dataset"""
@@ -200,7 +200,7 @@ def run_perf_tests():
 			start = time()
 			apriori("Datasets/" + dataset, min_freq)
 			mid = time()
-			alternative_miner("Datasets/" + dataset, min_freq)
+			# alternative_miner("Datasets/" + dataset, min_freq)
 			end = time()
 			print(dataset + "\t\t" + str(min_freq) + "\t\t" + "{:.2f}".format(mid-start) + "\t\t" + "{:.2f}".format(end-mid), file=log_file)
 			
@@ -209,6 +209,6 @@ def run_perf_tests():
 	log_file.close() 
 
 
-# apriori("Datasets/toy.dat", 0.125)
-# alternative_miner("Datasets/toy.dat", 0.125)
-run_perf_tests()
+# apriori("Datasets/test.dat", 0.8)
+# alternative_miner("Datasets/test.dat", 0.8)
+# run_perf_tests()

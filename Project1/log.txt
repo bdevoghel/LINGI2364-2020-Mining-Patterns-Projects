@@ -54,3 +54,5 @@ mushroom.dat		0.5		0.00		102.91
 mushroom.dat		0.4		0.00		221.06
 mushroom.dat		0.3		0.00		454.57
 mushroom.dat		0.2		0.00		2435.69
+			     apriori() 	 alternative_miner()
+			     apriori() 	 alternative_miner()
