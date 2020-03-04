@@ -21,6 +21,7 @@ Do not change the signature of the apriori and alternative_miner methods as they
 __authors__ = "Group 10 - MERSCH-MERSCH Severine & DE VOGHEL Brieuc"
 """
 from copy import copy, deepcopy
+from collections import OrderedDict
 
 class Dataset:
 	"""Utility class to manage a dataset stored in a external file."""
@@ -38,20 +39,16 @@ class Dataset:
 			self.projection = copy(initial.projection)
 			self.projection.append(item)
 
-			self.tid_list = []
-			for i, tid in enumerate(initial.tid_list):
-				if tid[0] < item: continue
-				if tid[0] == item:
-					i_projection = i
+			self.tid_list = OrderedDict()
+			for i, tid in enumerate(initial.tid_list.items()):
+				if tid[0] <= item: 
+					# print('continue')
 					continue
 
-				t_projected = []
-				for t in tid[1]:
-					if t in initial.tid_list[i_projection][1]:
-						t_projected.append(t)
+				projected_transactions = initial.tid_list[item].intersection(tid[1])
+				if len(projected_transactions) >= min_support:
+					self.tid_list[tid[0]] = projected_transactions
 
-				if len(t_projected) >= min_support:
-					self.tid_list.append( (tid[0], t_projected) )
 		else :
 
 			self.transactions = list()
@@ -71,15 +68,14 @@ class Dataset:
 						if (item,) not in self.items:
 							self.items[ (item,) ] = 1
 							if vertical:
-								self.tid_list[item] = [i]
+								self.tid_list[item] = {i}
 						else:
 							self.items[(item,)] +=1
 							if vertical:
-								self.tid_list[item].append(i) # TODO make sorted dict
+								self.tid_list[item].add(i)
 
 				if vertical:
-					self.tid_list = list(self.tid_list.items())
-					self.tid_list.sort(key=lambda tid: tid[0])
+					self.tid_list = OrderedDict(sorted(self.tid_list.items(), key=lambda tid: tid[0]))
 				
 			except IOError as e:
 				print("Unable to read dataset file!\n" + e)
@@ -165,7 +161,7 @@ def apriori(filepath, minFrequency):
 
 
 def eclat(dataset, min_support, nb_transactions):
-	for tid in dataset.tid_list:
+	for tid in dataset.tid_list.items():
 		if len(tid[1]) >= min_support:
 			print_frequent_itemset_from_tid(tid, dataset.projection, nb_transactions)
 			 
@@ -200,7 +196,7 @@ def run_perf_tests():
 			start = time()
 			apriori("Datasets/" + dataset, min_freq)
 			mid = time()
-			# alternative_miner("Datasets/" + dataset, min_freq)
+			alternative_miner("Datasets/" + dataset, min_freq)
 			end = time()
 			print(dataset + "\t\t" + str(min_freq) + "\t\t" + "{:.2f}".format(mid-start) + "\t\t" + "{:.2f}".format(end-mid), file=log_file)
 			
