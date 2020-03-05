@@ -207,4 +207,4 @@ def run_perf_tests():
 
 # apriori("Datasets/test.dat", 0.8)
 # alternative_miner("Datasets/test.dat", 0.8)
-# run_perf_tests()
+run_perf_tests()
