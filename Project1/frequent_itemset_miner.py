@@ -185,23 +185,34 @@ def alternative_miner(filepath, minFrequency):
 
 def run_perf_tests():
 	from time import time
+	import pickle
 
-	log_file = open('log.txt', 'a') 
+	log = [[e for e in ["dataset", "min_freq", "apriori_time", "miner_time"]]]
+
+	log_file = open('log2.txt', 'a') 
 	print("\t\t\t     apriori() \t alternative_miner()", file=log_file)
-	tested_datasets = ["accidents.dat", "chess.dat", "mushroom.dat", "retail.dat"]
+	tested_datasets = ["mushroom.dat", "retail.dat", "pumsb.dat", "accidents.dat", "chess.dat", "connect.dat"]
 	tested_frequencies = [.9, .8, .7, .6, .5, .4, .3, .2, .1]
 
-	for dataset in tested_datasets:
-		for min_freq in tested_frequencies:
-			start = time()
-			apriori("Datasets/" + dataset, min_freq)
-			mid = time()
-			alternative_miner("Datasets/" + dataset, min_freq)
-			end = time()
-			print(dataset + "\t\t" + str(min_freq) + "\t\t" + "{:.2f}".format(mid-start) + "\t\t" + "{:.2f}".format(end-mid), file=log_file)
-			
-			if end - start > 120 : break
-	
+	for iter in range(10):
+		for dataset in tested_datasets:
+			skip_apriori = False
+			skip_miner = False
+			for min_freq in tested_frequencies:
+				start = time()
+				if not skip_apriori: apriori("Datasets/" + dataset, min_freq)
+				mid = time()
+				if not skip_miner: alternative_miner("Datasets/" + dataset, min_freq)
+				end = time()
+				print(dataset + "\t\t" + str(min_freq) + "\t\t" + (("{:.2f}".format(mid-start)) if not skip_apriori else "N/A") + "\t\t" + (("{:.2f}".format(end-mid)) if not skip_miner else "N/A"), file=log_file)
+				log.append([dataset, min_freq, mid-start, end-mid])
+
+				if mid - start > 120 : skip_apriori = True
+				if end - mid > 120 : break
+
+	pickle_out = open("log.pickle","wb")
+	pickle.dump(log, pickle_out)
+	pickle_out.close()
 	log_file.close() 
 
 
