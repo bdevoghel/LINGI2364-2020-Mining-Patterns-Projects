@@ -216,6 +216,7 @@ def run_perf_tests():
 	log_file.close() 
 
 
-# apriori("Datasets/test.dat", 0.8)
-# alternative_miner("Datasets/test.dat", 0.8)
-run_perf_tests()
+if __name__ == "__main__":
+    # apriori("Datasets/chess.dat", 0.8)
+	alternative_miner("Datasets/chess.dat", 0.8)
+	# run_perf_tests()
