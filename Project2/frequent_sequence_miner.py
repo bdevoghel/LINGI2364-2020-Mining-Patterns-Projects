@@ -2,7 +2,7 @@
 
 import sys
 from copy import deepcopy
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 from heapq import heappop, heappush, heapify
 
 
@@ -43,15 +43,19 @@ class Heap:
 
 class Dataset:
     """Utility class to manage a dataset stored in a external file."""
+    classes = []
+    transactions = []
+    nb_transactions = 0
 
     def __init__(self, filepath_positive, filepath_negative, algo="PrefixSpan"):
         """reads the dataset files and initializes the dataset"""
         try:
             if algo == "PrefixSpan":
-                self.algo = algo
-                self.transactions = OrderedDict()
+                self.pid = []
+                self.projection = []
+                self.support = [] # list containing positive and negative support
                 last_position = sys.maxsize
-                tid = 0
+                tid = -1
                 for path_id, filepath in enumerate([filepath_positive, filepath_negative]):
                     path_id = POS if path_id == 0 else NEG
 
@@ -63,11 +67,12 @@ class Dataset:
                         position = int(position)
                         if position < last_position:
                             tid += 1
-                            self.transactions[tid] = {'symbols':[], 'pid':-1, 'class':path_id}
-                        self.transactions[tid]['symbols'].append(symbol)
+                            self.classes.append(path_id)
+                            self.transactions.append(list())
+                            self.nb_transactions += 1
+                            self.pid.append(-1)
+                        self.transactions[tid].append(symbol)
                         last_position = position
-                self.projection = []
-                self.freq = None # not computed
 
         except IOError as e:
             print("Unable to read file !\n" + e)
@@ -76,62 +81,67 @@ class Dataset:
         return str(self.transactions).replace('(', '\n(')
 
     def __str__(self):
-        return str(self.projection).replace('\'', '') + ' ' + str(self.freq['pos']) + ' ' + str(self.freq['neg']) + ' ' + str(sum(self.freq.values()))
-
-    def __cmp__(self, other):
-        return len(self.transactions) - len(other.transactions)
+        return str(self.projection).replace('\'', '') + ' ' + str(self.support[0]) + ' ' + str(self.support[1]) + ' ' + str(sum(self.support))
 
     def __lt__(self, other):
-        return self.__cmp__(other) < 0
+        return False
 
-    def branch(self, symbol, freq_pos, freq_neg):
-        new = deepcopy(self)
-        new.projection.append(symbol)
-        new.freq = {'pos':freq_pos, 'neg':freq_neg}
+    def branch(self, symbol, pos_support, neg_support):
+        branch = deepcopy(self) # TODO checkup
+        branch.projection.append(symbol)
+        branch.support = [pos_support, neg_support]
 
         # advance pid
-        for transaction in new.transactions.values():
+        for tid, transaction in enumerate(branch.transactions):
             j = 1
-            pid = transaction['pid']
-            while pid + j < len(transaction['symbols']):
-                if transaction['symbols'][pid + j] == symbol:
+            pid = branch.pid[tid]
+            length = len(transaction)
+            while pid + j < length:
+                if transaction[pid + j] == symbol:
                     break
                 else:
                     j += 1
-            transaction['pid'] += j
-            if transaction['pid'] >= len(transaction['symbols']):
+            branch.pid[tid] += j
+            if branch.pid[tid] >= length:
                 del transaction
+                self.nb_transactions -= 1
 
-        return (freq_pos + freq_neg, new)
+        return branch
+
+    def compute_support(self):
+        support_symbols_pos = defaultdict(int)
+        support_symbols_neg = defaultdict(int)
+        for tid, transaction in enumerate(self.transactions) :
+            for symbol in set(transaction[self.pid[tid]+1:]):
+                if self.classes[tid] == POS:
+                    support_symbols_pos[symbol] += 1
+                elif self.classes[tid] == NEG:
+                    support_symbols_neg[symbol] += 1
+        
+        return support_symbols_pos, support_symbols_neg
 
 
 def prefixspan(dataset, k):
     queue = Heap(order='max')
     queue.push( (sys.maxsize, dataset) )
 
-    last_freq = sys.maxsize
+    last_support = sys.maxsize
     while not queue.is_empty() and k >= 0:
-        freq, node = queue.pop()
-        if freq < last_freq:
-            last_freq = freq
+        support, node = queue.pop()
+        if support < last_support:
+            last_support = support
             k -= 1
             if k < 0:
                 break
-        if node.freq is not None:
+        if node.support:
             print(node)
             
-
-        freq_symbols_pos = defaultdict(int)
-        freq_symbols_neg = defaultdict(int)
-        for transaction in node.transactions.values() :
-            for symbol in set(transaction['symbols'][transaction['pid']+1:]):
-                if transaction['class'] == POS:
-                    freq_symbols_pos[symbol] += 1
-                elif transaction['class'] == NEG:
-                    freq_symbols_neg[symbol] += 1
-
-        for symbol in set(freq_symbols_pos.keys()).union(freq_symbols_neg.keys()):
-            queue.push(node.branch(symbol, freq_symbols_pos[symbol], freq_symbols_neg[symbol]))
+        support_symbols_pos, support_symbols_neg = node.compute_support()
+        for symbol in set().union(support_symbols_pos, support_symbols_neg):
+            queue.push((
+                support_symbols_pos[symbol] + support_symbols_neg[symbol],
+                node.branch(symbol, support_symbols_pos[symbol], support_symbols_neg[symbol])
+            ))
 
 
 def main():
