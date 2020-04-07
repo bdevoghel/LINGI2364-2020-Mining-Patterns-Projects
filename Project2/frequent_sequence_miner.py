@@ -52,11 +52,15 @@ class Dataset:
     """
     classes = []
     transactions = []
+    P = 0
+    N = 0
+    wracc_factor = None  # computed at end of init() : self.N*self.P/float((self.P+self.N)**2)
 
-    def __init__(self, filepath_positive, filepath_negative, algo="PrefixSpan"):
+    def __init__(self, filepath_positive, filepath_negative, algo="PrefixSpan", score_type="supsum"):
         """reads the dataset files and initializes the dataset"""
         try:
             if algo == "PrefixSpan":
+                self.score_type = score_type
                 self.pid = []
                 self.projection = []
                 self.support = () # 2-tuple containing positive and negative support
@@ -75,20 +79,25 @@ class Dataset:
                         position = int(position)
                         if position < last_position:  # new transaction beginning
                             tid += 1
+                            if path_id == POS:
+                                self.P += 1
+                            elif path_id == NEG:
+                                self.N += 1
                             self.transactions.append(list())
                             self.classes.append(path_id)
                             self.pid.append(-1)  # init
                         self.transactions[tid].append(symbol)
                         last_position = position
+                self.wracc_factor = self.N*self.P/float((self.P+self.N)**2)
         except IOError as e:
             print("Unable to read file !\n" + e)
     
     def __repr__(self):
-        return str(self.transactions).replace('(', '\n(')
+        return str(self.projection) # or str(self.transactions).replace('(', '\n(')
 
     def __str__(self):
         """formated print of the node's frequent sequence"""
-        return str(self.projection).replace('\'', '') + ' ' + str(self.support[0]) + ' ' + str(self.support[1]) + ' ' + str(sum(self.support))
+        return str(self.projection).replace('\'', '') + ' ' + str(self.support[0]) + ' ' + str(self.support[1]) + ' ' + str(self.score())
 
     def __lt__(self, other):
         return False
@@ -133,37 +142,49 @@ class Dataset:
         branch = copy(self)
         branch.pid = self.advance_pid(symbol)
         branch.projection = self.projection + [symbol]
-        branch.support = [pos_support, neg_support]
+        branch.support = (pos_support, neg_support)
         return branch
+
+    def score(self, pos_support=None, neg_support=None):
+        """computes score based on type precised at init(), can be done on other support than self"""
+        if pos_support is None and neg_support is None:
+            pos_support = self.support[0]
+            neg_support = self.support[1]
+        
+        if self.score_type == "supsum":
+            return pos_support + neg_support
+        if self.score_type == "wracc":
+            return self.wracc_factor * ( (pos_support/self.P) - (neg_support/self.N) )
 
 
 def prefixspan(dataset, k):
     queue = Heap(order='max')  # for DFS with heuristic
     queue.push( (sys.maxsize, dataset) )  # root
 
-    last_support = sys.maxsize
+    last_score = sys.maxsize
     while not queue.is_empty() and k >= 0:
-        support, node = queue.pop()
-        if support < last_support:
-            last_support = support
+        score, node = queue.pop()
+        if score < last_score:
+            last_score = score
             k -= 1
             if k < 0:
                 break
         if node.support:  # skip for root
-            print(node)
+            print(node)  # no guarantee this prints the patters in right order for other scoring type than "supsum"
             
         support_symbols_pos, support_symbols_neg = node.compute_support()
         all_support = OrderedDict(sorted((Counter(support_symbols_pos) + Counter(support_symbols_neg)).items(), key=lambda item: item[1], reverse=True))  # merge and sort support
 
         for i, symbol in enumerate(all_support):
             supp_pos, supp_neg = support_symbols_pos[symbol], support_symbols_neg[symbol]
-            sum_supp = supp_pos + supp_neg
-            if k - i < 0 or (k < queue.size and sum_supp < queue.heap[k][0]): break # heuristic
-            queue.push((sum_supp, node.branch(symbol, supp_pos, supp_neg)))
+            new_score = node.score(pos_support=supp_pos, neg_support=supp_neg)
+            if k - i < 0 or (k < queue.size and new_score < queue.heap[k][0]):  # heuristic
+                break
+            queue.push((new_score, node.branch(symbol, supp_pos, supp_neg)))
 
 def main():
-    pos_filepath = sys.argv[1] # filepath to positive class file
-    neg_filepath = sys.argv[2] # filepath to negative class file
+    pos_filepath = sys.argv[1]  # filepath to positive class file
+    neg_filepath = sys.argv[2]  # filepath to negative class file
     k = int(sys.argv[3])
 
     dataset = Dataset(pos_filepath, neg_filepath, algo="PrefixSpan")
