@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 
 import sys
-from copy import deepcopy
-from collections import defaultdict
+from copy import copy
+from collections import Counter, OrderedDict, defaultdict
 from heapq import heappop, heappush, heapify
 
 
 """
-Algo based on SPADE or PrefixSpan
+Algo based on PrefixSpan
 
 Finds the k most frequent paterns in both + and - classes of the dataset.
-
 => consider sum of of the support of both classes
 """
 
@@ -18,6 +17,10 @@ POS = 1
 NEG = -1
 
 class Heap:
+    """
+    Data structure easing the use of a min- or max-heap.
+    Stored items are 2-tuples with the first element being the order.
+    """
 
     def __init__(self, order='min'):
         self.order = -1 if order == 'max' else 1
@@ -25,8 +28,8 @@ class Heap:
         self.size = 0
         heapify(self.heap)
 
-    def push(self, elem):
-        heappush(self.heap, (self.order * elem[0], elem[1]))
+    def push(self, item):
+        heappush(self.heap, (self.order * item[0], item[1]))
         self.size += 1
 
     def pop(self):
@@ -42,10 +45,13 @@ class Heap:
 
 
 class Dataset:
-    """Utility class to manage a dataset stored in a external file."""
+    """
+    Data structure to mine frequent sequences in a dataset stored in external class files (one + and one -).
+    
+    Mining DFS-wise. Every instance is a node in the DFS.
+    """
     classes = []
     transactions = []
-    nb_transactions = 0
 
     def __init__(self, filepath_positive, filepath_negative, algo="PrefixSpan"):
         """reads the dataset files and initializes the dataset"""
@@ -53,27 +59,27 @@ class Dataset:
             if algo == "PrefixSpan":
                 self.pid = []
                 self.projection = []
-                self.support = [] # list containing positive and negative support
+                self.support = () # 2-tuple containing positive and negative support
+
                 last_position = sys.maxsize
                 tid = -1
                 for path_id, filepath in enumerate([filepath_positive, filepath_negative]):
-                    path_id = POS if path_id == 0 else NEG
+                    path_id = POS if path_id == 0 else NEG  # positive or negative class
 
+                    # reading the file, skipping blank lines
                     lines = [line.strip() for line in open(filepath, "r")]
-                    lines = [line.split(" ") for line in lines if line]  # skipping blank lines
+                    lines = [line.split(" ") for line in lines if line]
 
                     for line in lines:
-                        symbol, position = line
+                        symbol, position = line  # every line is a <symbol> <position in transaction> pair
                         position = int(position)
-                        if position < last_position:
+                        if position < last_position:  # new transaction beginning
                             tid += 1
-                            self.classes.append(path_id)
                             self.transactions.append(list())
-                            self.nb_transactions += 1
-                            self.pid.append(-1)
+                            self.classes.append(path_id)
+                            self.pid.append(-1)  # init
                         self.transactions[tid].append(symbol)
                         last_position = position
-
         except IOError as e:
             print("Unable to read file !\n" + e)
     
@@ -81,34 +87,17 @@ class Dataset:
         return str(self.transactions).replace('(', '\n(')
 
     def __str__(self):
+        """formated print of the node's frequent sequence"""
         return str(self.projection).replace('\'', '') + ' ' + str(self.support[0]) + ' ' + str(self.support[1]) + ' ' + str(sum(self.support))
 
     def __lt__(self, other):
         return False
 
-    def branch(self, symbol, pos_support, neg_support):
-        branch = deepcopy(self) # TODO checkup
-        branch.projection.append(symbol)
-        branch.support = [pos_support, neg_support]
-
-        # advance pid
-        for tid, transaction in enumerate(branch.transactions):
-            j = 1
-            pid = branch.pid[tid]
-            length = len(transaction)
-            while pid + j < length:
-                if transaction[pid + j] == symbol:
-                    break
-                else:
-                    j += 1
-            branch.pid[tid] += j
-            if branch.pid[tid] >= length:
-                del transaction
-                self.nb_transactions -= 1
-
-        return branch
-
     def compute_support(self):
+        """
+        First step of the PrefixSpan algo.
+        Traverse every transaction from pid+1 and increase counter of encountered symbol.
+        """
         support_symbols_pos = defaultdict(int)
         support_symbols_neg = defaultdict(int)
         for tid, transaction in enumerate(self.transactions) :
@@ -120,10 +109,37 @@ class Dataset:
         
         return support_symbols_pos, support_symbols_neg
 
+    def advance_pid(self, symbol): 
+        """
+        Last step of the PrefixSpan algo.
+        Setting the pid to the first occurence (after prev_pid) of the symbol branched on.
+        """
+        # NOTE takes 75%+ of computing, should be optimize with <ordered list of last position of symbols> or <list of symbol positions>
+        new_pid = [None] * len(self.pid)
+        for tid, transaction in enumerate(self.transactions):
+            j = 1
+            pid = self.pid[tid]
+            length = len(transaction)
+            while pid + j < length:
+                if transaction[pid + j] == symbol:
+                    break
+                else:
+                    j += 1
+            new_pid[tid] = pid + j
+        return new_pid
+
+    def branch(self, symbol, pos_support, neg_support):
+        """branches self on symbol, returns new class instance"""
+        branch = copy(self)
+        branch.pid = self.advance_pid(symbol)
+        branch.projection = self.projection + [symbol]
+        branch.support = [pos_support, neg_support]
+        return branch
+
 
 def prefixspan(dataset, k):
-    queue = Heap(order='max')
-    queue.push( (sys.maxsize, dataset) )
+    queue = Heap(order='max')  # for DFS with heuristic
+    queue.push( (sys.maxsize, dataset) )  # root
 
     last_support = sys.maxsize
     while not queue.is_empty() and k >= 0:
@@ -133,23 +149,23 @@ def prefixspan(dataset, k):
             k -= 1
             if k < 0:
                 break
-        if node.support:
+        if node.support:  # skip for root
             print(node)
             
         support_symbols_pos, support_symbols_neg = node.compute_support()
-        for symbol in set().union(support_symbols_pos, support_symbols_neg):
-            queue.push((
-                support_symbols_pos[symbol] + support_symbols_neg[symbol],
-                node.branch(symbol, support_symbols_pos[symbol], support_symbols_neg[symbol])
-            ))
+        all_support = OrderedDict(sorted((Counter(support_symbols_pos) + Counter(support_symbols_neg)).items(), key=lambda item: item[1], reverse=True))  # merge and sort support
 
+        for i, symbol in enumerate(all_support):
+            supp_pos, supp_neg = support_symbols_pos[symbol], support_symbols_neg[symbol]
+            sum_supp = supp_pos + supp_neg
+            if k - i < 0 or (k < queue.size and sum_supp < queue.heap[k][0]): break # heuristic
+            queue.push((sum_supp, node.branch(symbol, supp_pos, supp_neg)))
 
 def main():
     pos_filepath = sys.argv[1] # filepath to positive class file
     neg_filepath = sys.argv[2] # filepath to negative class file
     k = int(sys.argv[3])
 
-    # read the dataset files 
     dataset = Dataset(pos_filepath, neg_filepath, algo="PrefixSpan")
     prefixspan(dataset, k)
 
