@@ -110,7 +110,7 @@ class Dataset:
         support_symbols_pos = defaultdict(int)
         support_symbols_neg = defaultdict(int)
         for tid, transaction in enumerate(self.transactions) :
-            for symbol in set(transaction[self.pid[tid]+1:]):
+            for symbol in set(transaction[ self.pid[tid]+1:]):
                 if self.classes[tid] == POS:
                     support_symbols_pos[symbol] += 1
                 elif self.classes[tid] == NEG:
