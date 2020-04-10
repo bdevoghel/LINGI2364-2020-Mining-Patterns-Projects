@@ -170,8 +170,8 @@ class Dataset:
         if self.score_type == "supsum":
             return pos_support + neg_support
         if self.score_type == "wracc":
-            #return float("{:.5f}".format(self.wracc_factor * ( (pos_support/self.P) - (neg_support/self.N) )))
-            return self.wracc_factor * ( (pos_support/self.P) - (neg_support/self.N) )
+            return float("{:.5f}".format(self.wracc_factor * ( (pos_support/self.P) - (neg_support/self.N) )))
+            #return self.wracc_factor * ( (pos_support/self.P) - (neg_support/self.N) )
 
 
 def prefixspanOLD(dataset, k, support_threshold="anti_monotonic"):
@@ -251,7 +251,7 @@ def prefixspan(dataset, k, support_threshold="anti_monotonic"):
                     k_biggest_wracc.push((score, node))
 
         support_symbols_pos, support_symbols_neg = node.compute_support()
-        #all_support = (Counter(support_symbols_pos) + Counter(support_symbols_neg)).items() #merge
+        all_support = (Counter(support_symbols_pos) + Counter(support_symbols_neg)).items() #merge
 
         for symbol in support_symbols_pos: #A MODIF
             supp_pos, supp_neg = support_symbols_pos[symbol], support_symbols_neg[symbol]
