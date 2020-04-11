@@ -260,7 +260,7 @@ def main():
 if __name__ == "__main__":
     # "Datasets/Test/positive.txt" "Datasets/Test/negative.txt" 3
     # "Datasets/Protein/SRC1521.txt" "Datasets/Protein/PKA_group15.txt" 3
-    # "Datasets/Reuters/earn.txt" "/Datasets/Reuters/acq.txt" 3
+    # "Datasets/Reuters/earn.txt" "Datasets/Reuters/acq.txt" 3
 
     # start_time = time()
     main()

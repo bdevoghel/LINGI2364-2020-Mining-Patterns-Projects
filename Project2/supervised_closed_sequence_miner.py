@@ -5,6 +5,7 @@ from time import time
 from copy import copy
 from collections import Counter, OrderedDict, defaultdict
 from heapq import heappop, heappush, heapify
+import math
 
 """
 Algo based on PrefixSpan with Weighted relative accuracy
@@ -93,8 +94,10 @@ class ClosedHeap(Heap):
             self.size -= 1
         return
 
-def impurity():
-    pass # TODO
+def impurity_entropy(x): #information gain
+    if x==1 or x == 0:
+        return 0
+    return -x* math.log(x) - (1-x)*math.log(1-x)
 
 class Dataset:
     """
@@ -221,9 +224,14 @@ class Dataset:
         if self.score_type == "abswracc":
             return abs(round(self.wracc_factor * ((pos_support / self.P) - (neg_support / self.N)), 5))
         if self.score_type == "infogain":
-            return 0  # TODO
+            if pos_support == self.P and neg_support == self.N: #root and symbol present everywhere
+                return 0
+            else:
+                return impurity_entropy(self.P/(self.P + self.N))\
+                   - (pos_support + neg_support)/(self.P + self.N) * impurity_entropy(pos_support/(pos_support + neg_support)) \
+                   - (self.P + self.N - pos_support - neg_support)/(self.P + self.N) * impurity_entropy((self.P - pos_support)/(self.P + self.N - pos_support - neg_support))
 
-    def satisfies_heuristic(self, min_p, max_n, pos_support=None, neg_support=None):
+    def satisfies_heuristic(self, min_p, max_n, min_n, pos_support=None, neg_support=None):
         """
         Returns True if support heuristic is satisfied.
         If pos_support and neg_support are given, computes score based on these rather than self.support.
@@ -233,10 +241,15 @@ class Dataset:
             pos_support = self.support[0]
             neg_support = self.support[1]
 
-        return pos_support >= min_p or neg_support <= max_n
+        if self.score_type == "wracc":
+            return pos_support >= min_p or neg_support <= max_n
+        elif self.score_type == "abswracc":
+            return pos_support >= min_p or neg_support >= min_n
+        else :
+            return True
 
 
-def add_pattern(heap, nb_different_scores, k, score, node, min_p, max_n):
+def add_pattern(heap, nb_different_scores, k, score, node, min_p, max_n, min_n):
     if not heap.contains_closed_super_pattern(node):
         if nb_different_scores < k:
             if not heap.contains(score):  # pattern should be added without decrementing k
@@ -257,9 +270,10 @@ def add_pattern(heap, nb_different_scores, k, score, node, min_p, max_n):
 
                 min_p = node.P * new_min_wracc / node.wracc_factor
                 max_n = -node.N * new_min_wracc / node.wracc_factor
+                min_n = node.N * new_min_wracc / node.wracc_factor
                 heap.remove_contained_closed_under_pattern(node)
                 heap.push((score, node))
-    return nb_different_scores, min_p, max_n
+    return nb_different_scores, min_p, max_n, min_n
 
 def is_super_pattern_node(super_pattern, pattern):  # ex ABCD is super pattern of BC
     super_pattern_items = super_pattern.projection
@@ -284,29 +298,31 @@ def prefixspan(dataset, k):
     # support heuristic values for DFS
     min_p = 0
     max_n = 0
+    min_n = 0
 
     # compute DFS tree with heuristic
     while not queue.is_empty():
         score, node = queue.pop()
-        if node.satisfies_heuristic(min_p, max_n):
+        if node.satisfies_heuristic(min_p, max_n, min_n):
             if node.support:  # skip for root
                 # add node to k_best_wracc if its score is better than what exists and the closed is not present
-                nb_different_scores, min_p, max_n = add_pattern(k_best_wracc, nb_different_scores, k, score, node,
-                                                                min_p, max_n)
+                nb_different_scores, min_p, max_n, min_n = add_pattern(k_best_wracc, nb_different_scores, k, score, node,
+                                                                min_p, max_n, min_n)
 
             # DFS branching
             support_symbols_pos, support_symbols_neg = node.compute_support()
             for symbol in (support_symbols_pos + support_symbols_neg):
                 pos_supp, neg_supp = support_symbols_pos[symbol], support_symbols_neg[symbol]
 
-                if node.satisfies_heuristic(min_p, max_n, pos_supp, neg_supp):
+                if node.satisfies_heuristic(min_p, max_n, min_n, pos_supp, neg_supp):
                     new_score = node.score(pos_support=pos_supp, neg_support=neg_supp)
                     queue.push((new_score, node.branch(symbol, pos_supp, neg_supp)))
 
     # print k best patterns
-    print(len(k_best_wracc.heap))
+    #print(len(k_best_wracc.heap))
     for item in sorted(k_best_wracc.heap, reverse=True):
         print(item[1])
+
 
 def main():
     pos_filepath = sys.argv[1]  # filepath to positive class file
