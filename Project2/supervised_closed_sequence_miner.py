@@ -50,50 +50,51 @@ class Heap:
             return (self.heap[0][0] * self.order, self.heap[0][1])
 
     def contains(self, score):
-        for i in range(self.size):
-            if self.heap[i][0] * self.order == score:
+        for item in self.heap:
+            if item[0] * self.order == score:
                 return True
         return False
 
+
+class ClosedHeap(Heap):
+    """
+    Extention for closed patterns in a Heap
+    """
+
     def contains_super_pattern(self, pattern):
-        Found = False
-        i = 0
-        while not Found and i < self.size:
-            if is_super_pattern_node(self.heap[i][1], pattern):
-                Found = True
-            i += 1
-        return Found
+        for item in self.heap:
+            if is_super_pattern_node(item[1], pattern):
+                return True
+        return False
 
     def contains_closed_super_pattern(self, pattern):
-        Found = False
-        i = 0
-        while not Found and i < self.size:
-            if is_super_pattern_node(self.heap[i][1], pattern):
-                if self.heap[i][1].support[0] == pattern.support[0] and self.heap[i][1].support[1] == pattern.support[1]: #support positive and negative is same
-                    Found = True
-            i += 1
-        return Found
+        for item in self.heap:
+            if is_super_pattern_node(item[1], pattern):
+                if item[1].support == pattern.support:
+                    return True
+        return False
 
     def contains_closed_under_pattern(self, pattern):
-        Found = False
-        i = 0
-        while not Found and i < self.size:
-            if is_super_pattern_node(pattern, self.heap[i][1]):
-                if self.heap[i][1].support[0] == pattern.support[0] and self.heap[i][1].support[1] == pattern.support[1]:  # support positive and negative is same
-                    Found = True
-            i += 1
-        return Found
+        for item in self.heap:
+            if is_super_pattern_node(pattern, item[1]):
+                if item[1].support == pattern.support:
+                    return True
+        return False
 
     def remove_contained_closed_under_pattern(self, pattern):
-        i = 0
-        while i < self.size:
-            if is_super_pattern_node(pattern, self.heap[i][1]):
-                if self.heap[i][1].support[0] == pattern.support[0] and self.heap[i][1].support[1] == pattern.support[1]:  # support positive and negative is same
-                    #it's an under pattern that has to be removed from the heap because we add it's super pattern
-                    self.heap.remove(self.heap[i]) #TODO
-            i += 1
+        to_remove = []
+        for item in self.heap:
+            if is_super_pattern_node(pattern, item[1]):
+                if item[1].support == pattern.support:
+                    # item is an under pattern that has to be removed
+                    to_remove.append(item)
+        for tr in to_remove:
+            self.heap.remove(tr)
+            self.size -= 1
         return
 
+def impurity():
+    pass # TODO
 
 class Dataset:
     """
@@ -206,13 +207,21 @@ class Dataset:
         If pos_support and neg_support are given, computes score based on these rather than self.support.
         """
         if pos_support is None and neg_support is None:
-            pos_support = self.support[0]
-            neg_support = self.support[1]
+            if not self.support:
+                pos_support = self.P
+                neg_support = self.N
+            else :
+                pos_support = self.support[0]
+                neg_support = self.support[1]
 
         if self.score_type == "supsum":
             return pos_support + neg_support
         if self.score_type == "wracc":
             return round(self.wracc_factor * ((pos_support / self.P) - (neg_support / self.N)), 5)
+        if self.score_type == "abswracc":
+            return abs(round(self.wracc_factor * ((pos_support / self.P) - (neg_support / self.N)), 5))
+        if self.score_type == "infogain":
+            return 0  # TODO
 
     def satisfies_heuristic(self, min_p, max_n, pos_support=None, neg_support=None):
         """
@@ -252,12 +261,23 @@ def add_pattern(heap, nb_different_scores, k, score, node, min_p, max_n):
                 heap.push((score, node))
     return nb_different_scores, min_p, max_n
 
+def is_super_pattern_node(super_pattern, pattern):  # ex ABCD is super pattern of BC
+    super_pattern_items = super_pattern.projection
+    pattern_items = pattern.projection
+    i = 0
+    j = 0
+    while i < len(pattern_items) and j < len(super_pattern_items):
+        if (pattern_items[i] == super_pattern_items[j]):
+            i += 1
+        j += 1
+    return i == len(pattern_items) and super_pattern.score() == pattern.score()  # then we have found for each item in pattern, the same in super_pattern in the same order
+
 
 def prefixspan(dataset, k):
     queue = Heap(order="max")  # max heap for DFS with heuristic
     queue.push((sys.maxsize, dataset))  # root
 
-    k_best_wracc = Heap(order="min")  # min heap containting the curently best solutions
+    k_best_wracc = ClosedHeap(order="min")  # min heap containting the curently best solutions
     k_best_wracc.push((-sys.maxsize, dataset))  # root
     nb_different_scores = 1  # counts number of different scores there are in k_best_wracc, should be <= k
 
@@ -284,28 +304,16 @@ def prefixspan(dataset, k):
                     queue.push((new_score, node.branch(symbol, pos_supp, neg_supp)))
 
     # print k best patterns
-    while not k_best_wracc.is_empty():
-        print(k_best_wracc.pop_item())
-
-
-def is_super_pattern_node(super_pattern, pattern):  # ex ABCD is super pattern of BC
-    super_pattern_items = super_pattern.projection
-    pattern_items = pattern.projection
-    i = 0
-    j = 0
-    while i < len(pattern_items) and j < len(super_pattern_items):
-        if (pattern_items[i] == super_pattern_items[j]):
-            i += 1
-        j += 1
-    return i == len(pattern_items)  # then we have found for each item in pattern, the same in super_pattern in the same order
-
+    print(len(k_best_wracc.heap))
+    for item in sorted(k_best_wracc.heap, reverse=True):
+        print(item[1])
 
 def main():
     pos_filepath = sys.argv[1]  # filepath to positive class file
     neg_filepath = sys.argv[2]  # filepath to negative class file
     k = int(sys.argv[3])
 
-    dataset = Dataset(pos_filepath, neg_filepath, score_type="wracc")
+    dataset = Dataset(pos_filepath, neg_filepath, score_type="abswracc")  # choose from : supsum, wrac, abswracc, infogain
     prefixspan(dataset, k)
 
 
