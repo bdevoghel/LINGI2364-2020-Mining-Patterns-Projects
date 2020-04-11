@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 
 import sys
-import time
+from time import time
 from copy import copy
 from collections import Counter, OrderedDict, defaultdict
 from heapq import heappop, heappush, heapify
 
 
 """
-Algo based on PrefixSpan with Weighted relative accuracy  - TODO step to COP
+Algo based on PrefixSpan with Weighted relative accuracy
 
 Finds the k best paterns that are highly present in the positive class, but not in the negative class.
 
@@ -21,7 +21,7 @@ NEG = -1
 class Heap:
     """
     Data structure easing the use of a min- or max-heap.
-    Stored items are 2-tuples with the first element being the order.
+    Stored items are 2-tuples with the first element being the ordering score.
     """
 
     def __init__(self, order="min"):
@@ -37,7 +37,7 @@ class Heap:
     def pop(self):
         pop = heappop(self.heap)
         self.size -= 1
-        return pop[0] * self.order, pop[1]
+        return (pop[0] * self.order, pop[1])
 
     def pop_item(self):
         return self.pop()[1]
@@ -46,16 +46,14 @@ class Heap:
         return self.size == 0
 
     def peek(self):
-        return self.heap[0][0] * self.order, self.heap[0][1]
+        if not self.is_empty():
+            return (self.heap[0][0] * self.order, self.heap[0][1])
 
-    def contains(self, wracc):
-        Found = False
-        i = 0
-        while not Found and i < self.size:
-            if(self.heap[i][0]  * self.order == wracc):
-                Found = True
-            i += 1
-        return Found
+    def contains(self, score):
+        for i in range(self.size):
+            if self.heap[i][0] * self.order == score:
+                return True
+        return False
 
 
 
@@ -74,7 +72,7 @@ class Dataset:
     def __init__(self, filepath_positive, filepath_negative, algo="PrefixSpan", score_type="supsum"):
         """reads the dataset files and initializes the dataset"""
         try:
-            if algo == "PrefixSpan" or algo == "BranchAndBound":
+            if algo == "PrefixSpan":
                 self.score_type = score_type
                 self.pid = []
                 self.projection = []
@@ -89,6 +87,7 @@ class Dataset:
                     lines = [line.strip() for line in open(filepath, "r")]
                     lines = [line.split(" ") for line in lines if line]
 
+                    # parsing transactions
                     for line in lines:
                         symbol, position = line  # every line is a <symbol> <position in transaction> pair
                         position = int(position)
@@ -103,18 +102,20 @@ class Dataset:
                             self.pid.append(-1)  # init
                         self.transactions[tid].append(symbol)
                         last_position = position
+                
                 self.wracc_factor = self.N*self.P/float((self.P+self.N)**2)
         except IOError as e:
             print("Unable to read file !\n" + e)
     
     def __repr__(self):
-        return str(self.projection) # or str(self.transactions).replace("(", "\n(")
+        return str(self.projection)
 
     def __str__(self):
         """formated print of the node"s frequent sequence"""
-        return str(self.projection).replace("\'", "") + " " + str(self.support[0]) + " " + str(self.support[1]) + " " + str(self.score())
+        return str(self.projection).replace("\'", "") + f" {self.support[0]} {self.support[1]} {self.score()}"
 
     def __lt__(self, other):
+        """has no order"""
         return False
 
     def compute_support(self):
@@ -122,16 +123,16 @@ class Dataset:
         First step of the PrefixSpan algo.
         Traverse every transaction from pid+1 and increase counter of encountered symbol.
         """
-        support_symbols_pos = defaultdict(int)
-        support_symbols_neg = defaultdict(int)
-        for tid, transaction in enumerate(self.transactions) :
+        support_symbols_pos = Counter()
+        support_symbols_neg = Counter()
+        for tid, transaction in enumerate(self.transactions):
             for symbol in set(transaction[self.pid[tid]+1:]):
                 if self.classes[tid] == POS:
                     support_symbols_pos[symbol] += 1
                 elif self.classes[tid] == NEG:
                     support_symbols_neg[symbol] += 1
         
-        return support_symbols_pos, support_symbols_neg
+        return (support_symbols_pos, support_symbols_neg)
 
     def advance_pid(self, symbol): 
         """
@@ -139,7 +140,7 @@ class Dataset:
         Setting the pid to the first occurence (after prev_pid) of the symbol branched on.
         """
         # NOTE takes 75%+ of computing, should be optimize with <ordered list of last position of symbols> or <list of symbol positions>
-        #MOYEN D'AMELIORER CFR sl 17-18 de frequent sequence mining
+        # cf slide 17-18 of frequent sequence mining
         new_pid = [None] * len(self.pid)
         for tid, transaction in enumerate(self.transactions):
             j = 1
@@ -162,7 +163,10 @@ class Dataset:
         return branch
 
     def score(self, pos_support=None, neg_support=None):
-        """compute score based on type precised at init(), can be done on other support than self"""
+        """
+        Computes score based on type precised at init().
+        If pos_support and neg_support are given, computes score based on these rather than self.support.
+        """
         if pos_support is None and neg_support is None:
             pos_support = self.support[0]
             neg_support = self.support[1]
@@ -170,108 +174,74 @@ class Dataset:
         if self.score_type == "supsum":
             return pos_support + neg_support
         if self.score_type == "wracc":
-            return float("{:.5f}".format(self.wracc_factor * ( (pos_support/self.P) - (neg_support/self.N) )))
-            #return self.wracc_factor * ( (pos_support/self.P) - (neg_support/self.N) )
+            return round(self.wracc_factor * ( (pos_support/self.P) - (neg_support/self.N)), 5)
+
+    def satisfies_heuristic(self, min_p, max_n, pos_support=None, neg_support=None):
+        """
+        Returns True if support heuristic is satisfied.
+        If pos_support and neg_support are given, computes score based on these rather than self.support.
+        """
+        if pos_support is None and neg_support is None:
+            if not self.support: return True  # root
+            pos_support = self.support[0]
+            neg_support = self.support[1]
+        
+        return pos_support >= min_p or neg_support <= max_n
 
 
-def prefixspanOLD(dataset, k, support_threshold="anti_monotonic"):
-    queue = Heap(order="max")  # for DFS with heuristic
-    queue.push( (sys.maxsize, dataset) )  # root
+def add_pattern(heap, nb_different_scores, k, score, node, min_p, max_n):
+    if nb_different_scores < k:
+        if not heap.contains(score):  # pattern should be added without decrementing k
+            nb_different_scores += 1
+        heap.push((score, node))
 
-    solutions = Heap(order="max")
-
-    last_score = sys.maxsize
-    while not queue.is_empty() and k >= 0:
-        score, node = queue.pop()
-        if support_threshold == "anti_monotonic":
-            if score < last_score:
-                last_score = score
-                k -= 1
-                if k < 0:
-                    break
-            if node.support:  # skip for root
-                print(node)
-        elif node.support:
-            solutions.push((score, str(node)))  # str to save space
+    else: # reached k, only add if score is already present
+        min_wracc, __ = heap.peek()
+        if heap.contains(score):  # score is already present
+            heap.push((score, node))
+        elif score > min_wracc:  # score is more interesting than what already exists
+            new_min_wracc, __ = heap.peek()
+            while(new_min_wracc == min_wracc):
+                heap.pop()  # removes worse scores
+                new_min_wracc, __ = heap.peek()
             
-        support_symbols_pos, support_symbols_neg = node.compute_support()
-        all_support = OrderedDict(sorted((Counter(support_symbols_pos) + Counter(support_symbols_neg)).items(), key=lambda item: item[1], reverse=True))  # merge and sort support
+            min_p = node.P * new_min_wracc / node.wracc_factor
+            max_n = -node.N * new_min_wracc / node.wracc_factor
+            heap.push((score, node))
+    return nb_different_scores, min_p, max_n
 
-        for i, symbol in enumerate(all_support):
-            supp_pos, supp_neg = support_symbols_pos[symbol], support_symbols_neg[symbol]
-            new_score = node.score(pos_support=supp_pos, neg_support=supp_neg)
-            if support_threshold == "anti_monotonic" and (k - i < 0 or (k < queue.size and new_score < queue.heap[k][0])):  # heuristic, only if support threshold is anti-monotonic
-                break
-            queue.push((new_score, node.branch(symbol, supp_pos, supp_neg)))
-
-    while support_threshold != "anti_monotonic" and k >= 0:
-        score, seq = solutions.pop()
-        if score < last_score:
-            last_score = score
-            k -= 1
-            if k < 0:
-                break
-        print(seq)
-
-
-
-def prefixspan(dataset, k, support_threshold="anti_monotonic"):
-    queue = Heap(order="max")  # for DFS with heuristic
+def prefixspan(dataset, k):
+    queue = Heap(order="max")  # max heap for DFS with heuristic
     queue.push((sys.maxsize, dataset))  # root
-    #min heap qui va contenir les k meilleur Wracc, ainsi on va calculer les min_p et min_n pour etre au mieux que celui-la
-    # on modifie le moins bon des k, quand on trouve mieux
 
-    k_biggest_wracc = Heap(order="min")
-    k_biggest_wracc.push((-sys. maxsize, dataset))  # root
-    differentScores = 1 #va calculer le nombre de scores differents qu'on a, il doit etre <= k
+    k_best_wracc = Heap(order="min")  # min heap containting the curently best solutions
+    k_best_wracc.push((-sys. maxsize, dataset))  # root
+    nb_different_scores = 1  # counts number of different scores there are in k_best_wracc, should be <= k
 
+    # support heuristic values for DFS
     min_p = 0
     max_n = 0
 
+    # compute DFS tree with heuristic
     while not queue.is_empty():
         score, node = queue.pop()
-        if node.support:  # skip for root
-            if differentScores < k: #faut etre sur d'en avoir k diff!!
-                if not k_biggest_wracc.contains(score): # we found same W_racc
-                    differentScores += 1
-                k_biggest_wracc.push((score, node))
+        if node.satisfies_heuristic(min_p, max_n):
+            if node.support:  # skip for root
+                # add node to k_best_wracc if its score is better than what exists
+                nb_different_scores, min_p, max_n = add_pattern(k_best_wracc, nb_different_scores, k, score, node, min_p, max_n)
 
-            else: # size = k
-                min_Wracc, nodeWracc = k_biggest_wracc.peek()
-                if k_biggest_wracc.contains(score): # we found same W_racc
-                    k_biggest_wracc.push((score, node))  # just add new one
+            # DFS branching
+            support_symbols_pos, support_symbols_neg = node.compute_support()
+            for symbol in (support_symbols_pos + support_symbols_neg):
+                pos_supp, neg_supp = support_symbols_pos[symbol], support_symbols_neg[symbol]
+                
+                if node.satisfies_heuristic(min_p, max_n, pos_supp, neg_supp):
+                    new_score = node.score(pos_support=pos_supp, neg_support=neg_supp)
+                    queue.push((new_score, node.branch(symbol, pos_supp, neg_supp)))
 
-                elif score > min_Wracc: # we found a better W_racc
-                    new_min_Wracc, new_nodeWracc = k_biggest_wracc.peek()
-                    while(new_min_Wracc == min_Wracc):
-                        k_biggest_wracc.pop() #goodbye old oneS with same score
-                        new_min_Wracc, new_nodeWracc = k_biggest_wracc.peek()
-                    min_p = (score/dataset.wracc_factor)*dataset.P
-                    max_n = -((score/dataset.wracc_factor)*dataset.N)
-                    k_biggest_wracc.push((score, node))
-
-        support_symbols_pos, support_symbols_neg = node.compute_support()
-        all_support = (Counter(support_symbols_pos) + Counter(support_symbols_neg)).items() #merge
-
-        for symbol in support_symbols_pos: #A MODIF
-            supp_pos, supp_neg = support_symbols_pos[symbol], support_symbols_neg[symbol]
-            new_score = node.score(pos_support=supp_pos, neg_support=supp_neg)
-            if supp_pos >= min_p or supp_neg <= max_n:
-                queue.push((new_score, node.branch(symbol, supp_pos, supp_neg)))
-
-    """last_score = sys.maxsize
-    while k >= 0:
-        score, seq = k_biggest_wracc.pop() #attention c'est pas les plus grand c'est les plus petits
-        if score < last_score:
-            last_score = score
-            k -= 1
-            if k < 0:
-                break
-        print(seq)
-    """
-    while(not k_biggest_wracc.is_empty()):
-        score, seq = k_biggest_wracc.pop()
-        print(seq)
+    # print k best patterns
+    while not k_best_wracc.is_empty():
+        print(k_best_wracc.pop_item())
 
 
 def main():
@@ -279,14 +249,15 @@ def main():
     neg_filepath = sys.argv[2]  # filepath to negative class file
     k = int(sys.argv[3])
 
-    dataset = Dataset(pos_filepath, neg_filepath, algo="BranchAndBound", score_type="wracc")
-    prefixspan(dataset, k, support_threshold="non_monotonic")
+    dataset = Dataset(pos_filepath, neg_filepath, score_type="wracc")
+    prefixspan(dataset, k)
 
 
 if __name__ == "__main__":
-    #"Datasets/Test/positive.txt" "Datasets/Test/negative.txt" 3
-    #"Datasets/Protein/SRC1521.txt" "Datasets/Protein/PKA_group15.txt" 3
+    # "Datasets/Test/positive.txt" "Datasets/Test/negative.txt" 3
+    # "Datasets/Protein/SRC1521.txt" "Datasets/Protein/PKA_group15.txt" 3
+    # "Datasets/Reuters/earn.txt" "/Datasets/Reuters/acq.txt" 3
 
-    #start_time = time.time()
+    # start_time = time()
     main()
-    #print("--- %s seconds ---" % (time.time() - start_time))
+    # print(f"--- {time() - start_time)} seconds ---")
