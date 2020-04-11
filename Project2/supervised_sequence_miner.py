@@ -240,8 +240,8 @@ def prefixspan(dataset, k):
                     queue.push((new_score, node.branch(symbol, pos_supp, neg_supp)))
 
     # print k best patterns
-    while not k_best_wracc.is_empty():
-        print(k_best_wracc.pop_item())
+    for item in sorted(k_best_wracc.heap, reverse=True):
+        print(item[1])
 
 
 def main():
