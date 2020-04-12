@@ -103,7 +103,7 @@ class Dataset:
     """
     Data structure to mine frequent sequences in a dataset stored in external class files (one + and one -).
 
-    Mining DFS-wise. Every instance is a node in the DFS.
+    Mining BFS-wise. Every instance is a node in the BFS tree.
     """
     classes = []
     transactions = []
@@ -291,19 +291,19 @@ def is_super_pattern_node(super_pattern, pattern):  # ex ABCD is super pattern o
 
 
 def prefixspan(dataset, k):
-    queue = Heap(order="max")  # max heap for DFS with heuristic
+    queue = Heap(order="max")  # max heap for BFS with heuristic
     queue.push((sys.maxsize, dataset))  # root
 
     k_best_wracc = ClosedHeap(order="min")  # min heap containting the curently best solutions
     k_best_wracc.push((-sys.maxsize, dataset))  # root
     nb_different_scores = 1  # counts number of different scores there are in k_best_wracc, should be <= k
 
-    # support heuristic values for DFS
+    # support heuristic values for BFS
     min_p = 0
     max_n = 0
     min_n = 0
 
-    # compute DFS tree with heuristic
+    # compute BFS tree with heuristic
     while not queue.is_empty():
         score, node = queue.pop()
         if node.satisfies_heuristic(min_p, max_n, min_n):
@@ -312,7 +312,7 @@ def prefixspan(dataset, k):
                 nb_different_scores, min_p, max_n, min_n = add_pattern(k_best_wracc, nb_different_scores, k, score, node,
                                                                 min_p, max_n, min_n)
 
-            # DFS branching
+            # BFS branching
             support_symbols_pos, support_symbols_neg = node.compute_support()
             for symbol in (support_symbols_pos + support_symbols_neg):
                 pos_supp, neg_supp = support_symbols_pos[symbol], support_symbols_neg[symbol]
@@ -331,8 +331,12 @@ def main():
     pos_filepath = sys.argv[1]  # filepath to positive class file
     neg_filepath = sys.argv[2]  # filepath to negative class file
     k = int(sys.argv[3])
+    try:
+        score_type = sys.argv[4]
+    except IndexError:
+        score_type = "wracc" # choose from : wracc, abswracc, infogain
 
-    dataset = Dataset(pos_filepath, neg_filepath, score_type="infogain")  # choose from : wrac, abswracc, infogain
+    dataset = Dataset(pos_filepath, neg_filepath, score_type=score_type)
     prefixspan(dataset, k)
 
 

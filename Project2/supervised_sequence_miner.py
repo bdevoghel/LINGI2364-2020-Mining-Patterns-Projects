@@ -115,23 +115,23 @@ def next_larger_element(a:list, element, default=None):
     
 class Node:
     """
-    Node of a DFS tree for mining frequent patterns in a dataset.
+    Node of a BFS tree for mining frequent patterns in a dataset.
     """
 
-    def __init__(self, dataset:Dataset, projection=None, pid=None, p=None, n=None):
+    def __init__(self, dataset:Dataset, sequence=None, pid=None, p=None, n=None):
         self.dataset = dataset
         self.p = dataset.P if p is None else p  # support in positive class
         self.n = dataset.N if n is None else n  # support in negative class
-        self.projection = [] if projection is None else projection
+        self.sequence = [] if sequence is None else sequence
         self.pid = [-1] * len(dataset.transactions) if pid is None else pid
-        self.is_root = projection is None
+        self.is_root = sequence is None
     
     def __repr__(self):
-        return str(self.projection)
+        return str(self.sequence)
 
     def __str__(self):
-        """formated print of the node's frequent sequence"""
-        return str(self.projection).replace("\'", "") + f" {self.p} {self.n} {self.score()}"
+        """formated print of the node's sequence"""
+        return str(self.sequence).replace("\'", "") + f" {self.p} {self.n} {self.score()}"
 
     def __lt__(self, other):
         """has no order"""
@@ -169,7 +169,7 @@ class Node:
 
     def branch(self, symbol, pos_supp, neg_supp):
         """branches self on symbol, returns new Node instance"""
-        return Node(self.dataset, projection=(self.projection + [symbol]), pid=self.advance_pid(symbol), p=pos_supp, n=neg_supp)
+        return Node(self.dataset, sequence=(self.sequence + [symbol]), pid=self.advance_pid(symbol), p=pos_supp, n=neg_supp)
 
     def score(self, pos_supp=None, neg_supp=None):
         """
@@ -221,18 +221,18 @@ def add_pattern(heap, nb_different_scores, k, score, node, min_p, max_n):
 
 def prefixspan(dataset, k):
     root = Node(dataset)
-    queue = Heap(order="max")  # max heap for DFS node exploration with heuristic
+    queue = Heap(order="max")  # max heap for BFS node exploration with heuristic
     queue.push((sys.maxsize, root))  # adding root
 
     k_best_wracc = Heap(order="min")  # min heap containting the currently k best solutions
     k_best_wracc.push((-sys. maxsize, root))  # adding root with worst score
     nb_different_scores = 1  # counts number of different scores there are in k_best_wracc, should always be <= k
 
-    # support heuristic values for DFS
+    # support heuristic values for BFS
     min_p = 0
     max_n = 0
 
-    # compute DFS tree with heuristic
+    # compute BFS tree with heuristic
     while not queue.is_empty():
         score, node = queue.pop()
         if node.satisfies_heuristic(min_p, max_n):
@@ -240,7 +240,7 @@ def prefixspan(dataset, k):
                 # add node to k_best_wracc if its score is better than what exists
                 nb_different_scores, min_p, max_n = add_pattern(k_best_wracc, nb_different_scores, k, score, node, min_p, max_n)
 
-            # DFS branching
+            # BFS branching
             symbols_pos_supp, symbols_neg_supp = node.compute_support()
             for i, symbol in enumerate(symbols_pos_supp + symbols_neg_supp):
                 pos_supp, neg_supp = symbols_pos_supp[symbol], symbols_neg_supp[symbol]

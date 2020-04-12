@@ -48,7 +48,7 @@ class Dataset:
     """
     Data structure to mine frequent sequences in a dataset stored in external class files (one + and one -).
     
-    Mining DFS-wise. Every instance is a node in the DFS.
+    Mining BFS-wise. Every instance is a node in the BFS tree.
     """
     classes = []
     transactions = []
@@ -158,7 +158,7 @@ class Dataset:
 
 
 def prefixspan(dataset, k):
-    queue = Heap(order='max')  # for DFS with heuristic
+    queue = Heap(order='max')  # for BFS with heuristic
     queue.push( (sys.maxsize, dataset) )  # root
 
     last_score = sys.maxsize
