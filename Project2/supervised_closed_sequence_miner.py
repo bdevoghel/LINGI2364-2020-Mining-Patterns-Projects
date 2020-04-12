@@ -110,6 +110,7 @@ class Dataset:
     P = 0
     N = 0
     wracc_factor = None  # computed at end of init() : self.N*self.P/float((self.P+self.N)**2)
+    imp_term = None
 
     def __init__(self, filepath_positive, filepath_negative, algo="PrefixSpan", score_type="supsum"):
         """reads the dataset files and initializes the dataset"""
@@ -146,6 +147,7 @@ class Dataset:
                         last_position = position
 
                 self.wracc_factor = self.N * self.P / float((self.P + self.N) ** 2)
+                self.imp_term = impurity_entropy(self.P/(self.P + self.N))
         except IOError as e:
             print("Unable to read file !\n" + e)
 
@@ -227,7 +229,7 @@ class Dataset:
             if pos_support == self.P and neg_support == self.N: #root and symbol present everywhere
                 return 0
             else:
-                return impurity_entropy(self.P/(self.P + self.N))\
+                return self.imp_term\
                    - (pos_support + neg_support)/(self.P + self.N) * impurity_entropy(pos_support/(pos_support + neg_support)) \
                    - (self.P + self.N - pos_support - neg_support)/(self.P + self.N) * impurity_entropy((self.P - pos_support)/(self.P + self.N - pos_support - neg_support))
 
@@ -329,14 +331,14 @@ def main():
     neg_filepath = sys.argv[2]  # filepath to negative class file
     k = int(sys.argv[3])
 
-    dataset = Dataset(pos_filepath, neg_filepath, score_type="abswracc")  # choose from : supsum, wrac, abswracc, infogain
+    dataset = Dataset(pos_filepath, neg_filepath, score_type="infogain")  # choose from : supsum, wrac, abswracc, infogain
     prefixspan(dataset, k)
 
 
 if __name__ == "__main__":
     # "Datasets/Test/positive.txt" "Datasets/Test/negative.txt" 3
     # "Datasets/Protein/SRC1521.txt" "Datasets/Protein/PKA_group15.txt" 3
-    # "Datasets/Reuters/earn.txt" "/Datasets/Reuters/acq.txt" 3
+    # "Datasets/Reuters/earn.txt" "Datasets/Reuters/acq.txt" 3
 
     # start_time = time()
     main()
