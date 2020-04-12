@@ -3,7 +3,7 @@
 import sys
 from time import time
 from copy import copy
-from collections import Counter, OrderedDict, defaultdict
+from collections import Counter, OrderedDict, defaultdict, deque
 from heapq import heappop, heappush, heapify
 
 
@@ -65,6 +65,7 @@ class Dataset:
     """
     classes = []
     transactions = []
+    symbols_positions = []
     P = 0
     N = 0
     wracc_factor = None  # computed at end of init() : self.N*self.P/float((self.P+self.N)**2)
@@ -98,9 +99,11 @@ class Dataset:
                             elif path_id == NEG:
                                 self.N += 1
                             self.transactions.append(list())
+                            self.symbols_positions.append(defaultdict(deque))
                             self.classes.append(path_id)
                             self.pid.append(-1)  # init
                         self.transactions[tid].append(symbol)
+                        self.symbols_positions[tid][symbol].append(position-1)
                         last_position = position
                 
                 self.wracc_factor = self.N*self.P/float((self.P+self.N)**2)
@@ -138,20 +141,20 @@ class Dataset:
         """
         Last step of the PrefixSpan algo.
         Setting the pid to the first occurence (after prev_pid) of the symbol branched on.
+        Uses a list of symbol positions to faster update the pid than going through the whole transaction.
         """
-        # NOTE takes 75%+ of computing, should be optimize with <ordered list of last position of symbols> or <list of symbol positions>
-        # cf slide 17-18 of frequent sequence mining
         new_pid = [None] * len(self.pid)
-        for tid, transaction in enumerate(self.transactions):
-            j = 1
-            pid = self.pid[tid]
-            length = len(transaction)
-            while pid + j < length:
-                if transaction[pid + j] == symbol:
-                    break
-                else:
-                    j += 1
-            new_pid[tid] = pid + j
+        for tid, symbols_position in enumerate(self.symbols_positions):
+            if symbols_position[symbol]:
+                next_pid = symbols_position[symbol].popleft()
+                while next_pid < self.pid[tid]:
+                    if not symbols_position[symbol]:
+                        next_pid = len(self.transactions[tid])
+                        break
+                    next_pid = symbols_position[symbol].popleft()
+            else:
+                next_pid = len(self.transactions[tid])
+            new_pid[tid] = next_pid
         return new_pid
 
     def branch(self, symbol, pos_support, neg_support):
@@ -232,12 +235,13 @@ def prefixspan(dataset, k):
 
             # DFS branching
             support_symbols_pos, support_symbols_neg = node.compute_support()
-            for symbol in (support_symbols_pos + support_symbols_neg):
+            for i, symbol in enumerate(support_symbols_pos + support_symbols_neg):
                 pos_supp, neg_supp = support_symbols_pos[symbol], support_symbols_neg[symbol]
                 
                 if node.satisfies_heuristic(min_p, max_n, pos_supp, neg_supp):
                     new_score = node.score(pos_support=pos_supp, neg_support=neg_supp)
                     queue.push((new_score, node.branch(symbol, pos_supp, neg_supp)))
+                    print(i)
 
     # print k best patterns
     for item in sorted(k_best_wracc.heap, reverse=True):
