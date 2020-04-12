@@ -59,63 +59,79 @@ class Heap:
 
 class Dataset:
     """
-    Data structure to mine frequent sequences in a dataset stored in external class files (one + and one -).
-    
-    Mining DFS-wise. Every instance is a node in the DFS.
+    Data structure for the transactions in a dataset stored in external class files (+ and -).
     """
-    classes = []
-    transactions = []
-    symbols_positions = []
-    P = 0
-    N = 0
-    wracc_factor = None  # computed at end of init() : self.N*self.P/float((self.P+self.N)**2)
 
-    def __init__(self, filepath_positive, filepath_negative, algo="PrefixSpan", score_type="supsum"):
+    def __init__(self, filepath_positive, filepath_negative, score_type="supsum"):
         """reads the dataset files and initializes the dataset"""
         try:
-            if algo == "PrefixSpan":
-                self.score_type = score_type
-                self.pid = []
-                self.projection = []
-                self.support = () # 2-tuple containing positive and negative support
+            self.score_type = score_type
+            self.transactions = []
+            self.nb_transactions = None  # computed at end of init()
+            self.transactions_len = []
+            self.symbols_positions = []
+            self.classes = []
+            self.P = 0
+            self.N = 0
+            self.wracc_factor = None  # computed at end of init()
+            
+            last_position = sys.maxsize
+            tid = -1
+            for path_id, filepath in enumerate([filepath_positive, filepath_negative]):
+                path_id = POS if path_id == 0 else NEG  # positive or negative class
 
-                last_position = sys.maxsize
-                tid = -1
-                for path_id, filepath in enumerate([filepath_positive, filepath_negative]):
-                    path_id = POS if path_id == 0 else NEG  # positive or negative class
+                # reading the file, skipping blank lines
+                lines = [line.strip() for line in open(filepath, "r")]
+                lines = [line.split(" ") for line in lines if line]
 
-                    # reading the file, skipping blank lines
-                    lines = [line.strip() for line in open(filepath, "r")]
-                    lines = [line.split(" ") for line in lines if line]
-
-                    # parsing transactions
-                    for line in lines:
-                        symbol, position = line  # every line is a <symbol> <position in transaction> pair
-                        position = int(position)
-                        if position < last_position:  # new transaction beginning
-                            tid += 1
-                            if path_id == POS:
-                                self.P += 1
-                            elif path_id == NEG:
-                                self.N += 1
-                            self.transactions.append(list())
-                            self.symbols_positions.append(defaultdict(deque))
-                            self.classes.append(path_id)
-                            self.pid.append(-1)  # init
-                        self.transactions[tid].append(symbol)
-                        self.symbols_positions[tid][symbol].append(position-1)
-                        last_position = position
-                
-                self.wracc_factor = self.N*self.P/float((self.P+self.N)**2)
+                # parsing transactions
+                for line in lines:
+                    symbol, position = line  # every line is a <symbol> <position in transaction> pair
+                    position = int(position)
+                    if position < last_position:  # new transaction beginning
+                        tid += 1
+                        if path_id == POS:
+                            self.P += 1
+                        elif path_id == NEG:
+                            self.N += 1
+                        self.transactions.append(list())
+                        self.symbols_positions.append(defaultdict(list))
+                        self.classes.append(path_id)
+                    self.transactions[tid].append(symbol)
+                    self.symbols_positions[tid][symbol].append(position-1)
+                    last_position = position
+            self.nb_transactions = tid
+            for tr in self.transactions:
+                self.transactions_len.append(len(tr))
+            self.wracc_factor = self.N*self.P/float((self.P+self.N)**2)
         except IOError as e:
             print("Unable to read file !\n" + e)
+
+def next_larger_element(a:list, element, default=None):
+    for e in a:
+        if e > element:
+            return e
+    return default
+    
+class Node:
+    """
+    Node of a DFS tree for mining frequent patterns in a dataset.
+    """
+
+    def __init__(self, dataset:Dataset, projection=None, pid=None, p=None, n=None):
+        self.dataset = dataset
+        self.p = dataset.P if p is None else p  # support in positive class
+        self.n = dataset.N if n is None else n  # support in negative class
+        self.projection = [] if projection is None else projection
+        self.pid = [-1] * len(dataset.transactions) if pid is None else pid
+        self.is_root = projection is None
     
     def __repr__(self):
         return str(self.projection)
 
     def __str__(self):
-        """formated print of the node"s frequent sequence"""
-        return str(self.projection).replace("\'", "") + f" {self.support[0]} {self.support[1]} {self.score()}"
+        """formated print of the node's frequent sequence"""
+        return str(self.projection).replace("\'", "") + f" {self.p} {self.n} {self.score()}"
 
     def __lt__(self, other):
         """has no order"""
@@ -126,70 +142,60 @@ class Dataset:
         First step of the PrefixSpan algo.
         Traverse every transaction from pid+1 and increase counter of encountered symbol.
         """
-        support_symbols_pos = Counter()
-        support_symbols_neg = Counter()
-        for tid, transaction in enumerate(self.transactions):
+        symbols_pos_supp = Counter()
+        symbols_neg_supp = Counter()
+        for tid, transaction in enumerate(self.dataset.transactions):
             for symbol in set(transaction[self.pid[tid]+1:]):
-                if self.classes[tid] == POS:
-                    support_symbols_pos[symbol] += 1
-                elif self.classes[tid] == NEG:
-                    support_symbols_neg[symbol] += 1
+                if self.dataset.classes[tid] == POS:
+                    symbols_pos_supp[symbol] += 1
+                elif self.dataset.classes[tid] == NEG:
+                    symbols_neg_supp[symbol] += 1
         
-        return (support_symbols_pos, support_symbols_neg)
+        return (symbols_pos_supp, symbols_neg_supp)
 
-    def advance_pid(self, symbol): 
+    def advance_pid(self, symbol):
         """
         Last step of the PrefixSpan algo.
         Setting the pid to the first occurence (after prev_pid) of the symbol branched on.
         Uses a list of symbol positions to faster update the pid than going through the whole transaction.
         """
-        new_pid = [None] * len(self.pid)
-        for tid, symbols_position in enumerate(self.symbols_positions):
-            if symbols_position[symbol]:
-                next_pid = symbols_position[symbol].popleft()
-                while next_pid < self.pid[tid]:
-                    if not symbols_position[symbol]:
-                        next_pid = len(self.transactions[tid])
-                        break
-                    next_pid = symbols_position[symbol].popleft()
+        new_pid = [None] * (self.dataset.nb_transactions+1)
+        for tid, symbols_position in enumerate(self.dataset.symbols_positions):
+            if symbol in symbols_position:
+                new_pid[tid] = next_larger_element(symbols_position[symbol], self.pid[tid], default=self.dataset.transactions_len[tid])
             else:
-                next_pid = len(self.transactions[tid])
-            new_pid[tid] = next_pid
+                new_pid[tid] = self.dataset.transactions_len[tid]
         return new_pid
 
-    def branch(self, symbol, pos_support, neg_support):
-        """branches self on symbol, returns new class instance"""
-        branch = copy(self)
-        branch.pid = self.advance_pid(symbol)
-        branch.projection = self.projection + [symbol]
-        branch.support = (pos_support, neg_support)
-        return branch
+    def branch(self, symbol, pos_supp, neg_supp):
+        """branches self on symbol, returns new Node instance"""
+        return Node(self.dataset, projection=(self.projection + [symbol]), pid=self.advance_pid(symbol), p=pos_supp, n=neg_supp)
 
-    def score(self, pos_support=None, neg_support=None):
+    def score(self, pos_supp=None, neg_supp=None):
         """
-        Computes score based on type precised at init().
-        If pos_support and neg_support are given, computes score based on these rather than self.support.
+        Computes score based on type precised in dataset. Score rounded at 5 decimals.
+        If pos_supp and neg_supp are given, computes score based on these rather than on self.p and self.n.
         """
-        if pos_support is None and neg_support is None:
-            pos_support = self.support[0]
-            neg_support = self.support[1]
+        if pos_supp is None and neg_supp is None:
+            pos_supp = self.p
+            neg_supp = self.n
         
-        if self.score_type == "supsum":
-            return pos_support + neg_support
-        if self.score_type == "wracc":
-            return round(self.wracc_factor * ( (pos_support/self.P) - (neg_support/self.N)), 5)
+        if self.dataset.score_type == "supsum":
+            return pos_supp + neg_supp
+        if self.dataset.score_type == "wracc":
+            return round(self.dataset.wracc_factor * ( (pos_supp/self.dataset.P) - (neg_supp/self.dataset.N)), 5)
 
-    def satisfies_heuristic(self, min_p, max_n, pos_support=None, neg_support=None):
+    def satisfies_heuristic(self, min_p, max_n, pos_supp=None, neg_supp=None):
         """
         Returns True if support heuristic is satisfied.
-        If pos_support and neg_support are given, computes score based on these rather than self.support.
+        If pos_supp and neg_supp are given, computes heuristic based on these rather than on self.p and self.n.
         """
-        if pos_support is None and neg_support is None:
-            if not self.support: return True  # root
-            pos_support = self.support[0]
-            neg_support = self.support[1]
+        if pos_supp is None and neg_supp is None:
+            if self.is_root: return True
+            pos_supp = self.p
+            neg_supp = self.n
         
-        return pos_support >= min_p or neg_support <= max_n
+        return pos_supp >= min_p or neg_supp <= max_n
 
 
 def add_pattern(heap, nb_different_scores, k, score, node, min_p, max_n):
@@ -198,28 +204,29 @@ def add_pattern(heap, nb_different_scores, k, score, node, min_p, max_n):
             nb_different_scores += 1
         heap.push((score, node))
 
-    else: # reached k, only add if score is already present
+    else:  # reached k patterns in heap, only add if score is already present
         min_wracc, __ = heap.peek()
         if heap.contains(score):  # score is already present
             heap.push((score, node))
         elif score > min_wracc:  # score is more interesting than what already exists
             new_min_wracc, __ = heap.peek()
             while(new_min_wracc == min_wracc):
-                heap.pop()  # removes worse scores
+                heap.pop()  # removes worst score
                 new_min_wracc, __ = heap.peek()
-            
-            min_p = node.P * new_min_wracc / node.wracc_factor
-            max_n = -node.N * new_min_wracc / node.wracc_factor
             heap.push((score, node))
+            
+            min_p = node.dataset.P * new_min_wracc / node.dataset.wracc_factor
+            max_n = -node.dataset.N * new_min_wracc / node.dataset.wracc_factor
     return nb_different_scores, min_p, max_n
 
 def prefixspan(dataset, k):
-    queue = Heap(order="max")  # max heap for DFS with heuristic
-    queue.push((sys.maxsize, dataset))  # root
+    root = Node(dataset)
+    queue = Heap(order="max")  # max heap for DFS node exploration with heuristic
+    queue.push((sys.maxsize, root))  # adding root
 
-    k_best_wracc = Heap(order="min")  # min heap containting the curently best solutions
-    k_best_wracc.push((-sys. maxsize, dataset))  # root
-    nb_different_scores = 1  # counts number of different scores there are in k_best_wracc, should be <= k
+    k_best_wracc = Heap(order="min")  # min heap containting the currently k best solutions
+    k_best_wracc.push((-sys. maxsize, root))  # adding root with worst score
+    nb_different_scores = 1  # counts number of different scores there are in k_best_wracc, should always be <= k
 
     # support heuristic values for DFS
     min_p = 0
@@ -229,19 +236,18 @@ def prefixspan(dataset, k):
     while not queue.is_empty():
         score, node = queue.pop()
         if node.satisfies_heuristic(min_p, max_n):
-            if node.support:  # skip for root
+            if not node.is_root:  # skip for root
                 # add node to k_best_wracc if its score is better than what exists
                 nb_different_scores, min_p, max_n = add_pattern(k_best_wracc, nb_different_scores, k, score, node, min_p, max_n)
 
             # DFS branching
-            support_symbols_pos, support_symbols_neg = node.compute_support()
-            for i, symbol in enumerate(support_symbols_pos + support_symbols_neg):
-                pos_supp, neg_supp = support_symbols_pos[symbol], support_symbols_neg[symbol]
+            symbols_pos_supp, symbols_neg_supp = node.compute_support()
+            for i, symbol in enumerate(symbols_pos_supp + symbols_neg_supp):
+                pos_supp, neg_supp = symbols_pos_supp[symbol], symbols_neg_supp[symbol]
                 
                 if node.satisfies_heuristic(min_p, max_n, pos_supp, neg_supp):
-                    new_score = node.score(pos_support=pos_supp, neg_support=neg_supp)
+                    new_score = node.score(pos_supp=pos_supp, neg_supp=neg_supp)
                     queue.push((new_score, node.branch(symbol, pos_supp, neg_supp)))
-                    print(i)
 
     # print k best patterns
     for item in sorted(k_best_wracc.heap, reverse=True):
@@ -258,10 +264,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # "Datasets/Test/positive.txt" "Datasets/Test/negative.txt" 3
-    # "Datasets/Protein/SRC1521.txt" "Datasets/Protein/PKA_group15.txt" 3
-    # "Datasets/Reuters/earn.txt" "Datasets/Reuters/acq.txt" 3
-
-    # start_time = time()
     main()
-    # print(f"--- {time() - start_time)} seconds ---")
