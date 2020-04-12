@@ -5,7 +5,7 @@ from time import time
 from copy import copy
 from collections import Counter, OrderedDict, defaultdict
 from heapq import heappop, heappush, heapify
-import math
+from math import log2
 
 """
 Algo based on PrefixSpan with Weighted relative accuracy
@@ -95,9 +95,9 @@ class ClosedHeap(Heap):
         return
 
 def impurity_entropy(x): #information gain
-    if x==1 or x == 0:
+    if x == 1 or x == 0:
         return 0
-    return -x* math.log(x) - (1-x)*math.log(1-x)
+    return -x * log2(x) - (1-x)*log2(1-x)
 
 class Dataset:
     """
@@ -229,9 +229,10 @@ class Dataset:
             if pos_support == self.P and neg_support == self.N: #root and symbol present everywhere
                 return 0
             else:
-                return self.imp_term\
-                   - (pos_support + neg_support)/(self.P + self.N) * impurity_entropy(pos_support/(pos_support + neg_support)) \
-                   - (self.P + self.N - pos_support - neg_support)/(self.P + self.N) * impurity_entropy((self.P - pos_support)/(self.P + self.N - pos_support - neg_support))
+                a = pos_support + neg_support
+                b = self.P + self.N
+                c = b - pos_support - neg_support
+                return round(self.imp_term - a/b * impurity_entropy(pos_support / a) - c/b * impurity_entropy((self.P-pos_support) / c), 5)
 
     def satisfies_heuristic(self, min_p, max_n, min_n, pos_support=None, neg_support=None):
         """
@@ -331,7 +332,7 @@ def main():
     neg_filepath = sys.argv[2]  # filepath to negative class file
     k = int(sys.argv[3])
 
-    dataset = Dataset(pos_filepath, neg_filepath, score_type="infogain")  # choose from : supsum, wrac, abswracc, infogain
+    dataset = Dataset(pos_filepath, neg_filepath, score_type="infogain")  # choose from : wrac, abswracc, infogain
     prefixspan(dataset, k)
 
 
