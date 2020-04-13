@@ -11,8 +11,6 @@ from heapq import heappop, heappush, heapify
 Algo based on PrefixSpan with Weighted relative accuracy
 
 Finds the k best paterns that are highly present in the positive class, but not in the negative class.
-
-=> consider Wracc score
 """
 
 POS = 1
@@ -50,11 +48,17 @@ class Heap:
             return (self.heap[0][0] * self.order, self.heap[0][1])
 
     def contains(self, score):
-        for i in range(self.size):
-            if self.heap[i][0] * self.order == score:
+        for item in self.heap:
+            if item[0] * self.order == score:
                 return True
         return False
 
+
+def next_larger_element(a:list, element, default=None):
+    for e in a:
+        if e > element:
+            return e
+    return default
 
 
 class Dataset:
@@ -103,19 +107,15 @@ class Dataset:
             self.nb_transactions = tid
             for tr in self.transactions:
                 self.transactions_len.append(len(tr))
-            self.wracc_factor = self.N*self.P/float((self.P+self.N)**2)
+            self.wracc_factor = self.N*self.P / float((self.P+self.N)**2)
+            self.impurity_factor = impurity_entropy(self.P / (self.P+self.N))
         except IOError as e:
             print("Unable to read file !\n" + e)
 
-def next_larger_element(a:list, element, default=None):
-    for e in a:
-        if e > element:
-            return e
-    return default
-    
+
 class Node:
     """
-    Node of a BFS tree for mining frequent patterns in a dataset.
+    Node of a BFS tree for mining frequent sequences in a dataset.
     """
 
     def __init__(self, dataset:Dataset, sequence=None, pid=None, p=None, n=None):
@@ -125,7 +125,7 @@ class Node:
         self.sequence = [] if sequence is None else sequence
         self.pid = [-1] * len(dataset.transactions) if pid is None else pid
         self.is_root = sequence is None
-    
+
     def __repr__(self):
         return str(self.sequence)
 
@@ -177,15 +177,31 @@ class Node:
         If pos_supp and neg_supp are given, computes score based on these rather than on self.p and self.n.
         """
         if pos_supp is None and neg_supp is None:
-            pos_supp = self.p
-            neg_supp = self.n
+            if self.is_root:
+                pos_supp = self.dataset.P
+                neg_supp = self.dataset.N
+            else:
+                pos_supp = self.p
+                neg_supp = self.n
         
         if self.dataset.score_type == "supsum":
             return pos_supp + neg_supp
         if self.dataset.score_type == "wracc":
             return round(self.dataset.wracc_factor * ( (pos_supp/self.dataset.P) - (neg_supp/self.dataset.N)), 5)
+        if self.dataset.score_type == "abswracc":
+            return abs(round(self.dataset.wracc_factor * ( (pos_supp/self.dataset.P) - (neg_supp/self.dataset.N)), 5))
+        if self.dataset.score_type == "infogain":
+            if self.is_root:
+                return 0
+            else:
+                a = pos_supp + neg_supp
+                b = self.dataset.P + self.dataset.N
+                c = b - pos_supp - neg_supp
+                return round(self.dataset.impurity_factor - a/b * impurity_entropy(pos_supp / a) - c/b * impurity_entropy((self.dataset.P-pos_supp) / c), 5)
+        else:
+            raise NotImplementedError("Unknown scoring type")
 
-    def satisfies_heuristic(self, min_p, max_n, pos_supp=None, neg_supp=None):
+    def satisfies_heuristic(self, min_p, max_n, min_n, pos_supp=None, neg_supp=None):
         """
         Returns True if support heuristic is satisfied.
         If pos_supp and neg_supp are given, computes heuristic based on these rather than on self.p and self.n.
@@ -195,16 +211,21 @@ class Node:
             pos_supp = self.p
             neg_supp = self.n
         
-        return pos_supp >= min_p or neg_supp <= max_n
+        if self.dataset.score_type == "wracc":
+            return pos_supp >= min_p or neg_supp <= max_n
+        elif self.dataset.score_type == "abswracc":
+            return pos_supp >= min_p or neg_supp >= min_n
+        else :
+            return True
 
 
-def add_pattern(heap, nb_different_scores, k, score, node, min_p, max_n):
+def add_sequence(heap, nb_different_scores, k, score, node, min_p, max_n, min_n):
     if nb_different_scores < k:
-        if not heap.contains(score):  # pattern should be added without decrementing k
+        if not heap.contains(score):  # sequence should be added without decrementing k
             nb_different_scores += 1
         heap.push((score, node))
 
-    else:  # reached k patterns in heap, only add if score is already present
+    else:  # reached k sequences in heap, only add if score is already present
         min_wracc, __ = heap.peek()
         if heap.contains(score):  # score is already present
             heap.push((score, node))
@@ -216,8 +237,9 @@ def add_pattern(heap, nb_different_scores, k, score, node, min_p, max_n):
             heap.push((score, node))
             
             min_p = node.dataset.P * new_min_wracc / node.dataset.wracc_factor
-            max_n = -node.dataset.N * new_min_wracc / node.dataset.wracc_factor
-    return nb_different_scores, min_p, max_n
+            min_n = node.dataset.N * new_min_wracc / node.dataset.wracc_factor
+            max_n = -min_n
+    return nb_different_scores, min_p, max_n, min_n
 
 def prefixspan(dataset, k):
     root = Node(dataset)
@@ -231,25 +253,26 @@ def prefixspan(dataset, k):
     # support heuristic values for BFS
     min_p = 0
     max_n = 0
+    min_n = 0
 
     # compute BFS tree with heuristic
     while not queue.is_empty():
         score, node = queue.pop()
-        if node.satisfies_heuristic(min_p, max_n):
+        if node.satisfies_heuristic(min_p, max_n, min_n):
             if not node.is_root:  # skip for root
                 # add node to k_best_wracc if its score is better than what exists
-                nb_different_scores, min_p, max_n = add_pattern(k_best_wracc, nb_different_scores, k, score, node, min_p, max_n)
+                nb_different_scores, min_p, max_n, min_n = add_sequence(k_best_wracc, nb_different_scores, k, score, node, min_p, max_n, min_n)
 
             # BFS branching
             symbols_pos_supp, symbols_neg_supp = node.compute_support()
-            for i, symbol in enumerate(symbols_pos_supp + symbols_neg_supp):
+            for symbol in OrderedDict(sorted((symbols_pos_supp + symbols_neg_supp).items(), key=lambda item:(item[1], item[0]), reverse=True)):
                 pos_supp, neg_supp = symbols_pos_supp[symbol], symbols_neg_supp[symbol]
-                
-                if node.satisfies_heuristic(min_p, max_n, pos_supp, neg_supp):
+
+                if node.satisfies_heuristic(min_p, max_n, min_n, pos_supp, neg_supp):
                     new_score = node.score(pos_supp=pos_supp, neg_supp=neg_supp)
                     queue.push((new_score, node.branch(symbol, pos_supp, neg_supp)))
 
-    # print k best patterns
+    # print k best sequences
     for item in sorted(k_best_wracc.heap, reverse=True):
         print(item[1])
 
@@ -258,8 +281,12 @@ def main():
     pos_filepath = sys.argv[1]  # filepath to positive class file
     neg_filepath = sys.argv[2]  # filepath to negative class file
     k = int(sys.argv[3])
+    try:
+        score_type = sys.argv[4]
+    except IndexError:
+        score_type = "wracc" # choose from : wracc, abswracc, infogain
 
-    dataset = Dataset(pos_filepath, neg_filepath, score_type="wracc")
+    dataset = Dataset(pos_filepath, neg_filepath, score_type=score_type)
     prefixspan(dataset, k)
 
 
