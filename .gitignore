@@ -1,3 +1,28 @@
 .idea
 .vscode
-/Project1/TestTry.py
+
+
+# Idea files and dirs #
+#######################
+*.iml
+**/out/
+**/.idea/
+*.class
+
+# latex compilation files #
+###########################
+*.aux
+*.log
+*.dvi
+*.synctex.gz
+
+# OS generated files #
+######################
+.DS_Store
+.DS_Store?
+._*
+
+# Python cache #
+################
+**/__pycache__/
+*.pyc
