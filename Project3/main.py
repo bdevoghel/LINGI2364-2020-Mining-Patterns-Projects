@@ -5,9 +5,9 @@ and adapted by Mersch-Mersch Severine, and de Voghel Brieuc
 
 """The main program that runs gSpan. Two examples are provided"""
 # -*- coding=utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import pytho
+#from __future__ import absolute_import
+#from __future__ import division
+#from __future__ import pytho
 
 import os
 import sys
