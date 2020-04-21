@@ -5,9 +5,9 @@ and adapted by Mersch-Mersch Severine, and de Voghel Brieuc
 
 """The main program that runs gSpan. Two examples are provided"""
 # -*- coding=utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import pytho
+# from __future__ import absolute_import
+# from __future__ import division
+# from __future__ import pytho
 
 import os
 import sys
@@ -54,16 +54,16 @@ class PatternGraphs:
         print("Please implement the prune function in a subclass for a specific mining task!")
 
 
-class FrequentPositiveGraphs(PatternGraphs):
+class FrequentPositiveAndNegativeGraphs(PatternGraphs):
     """
-    Finds the frequent (support >= minsup) subgraphs among the positive graphs.
+    Finds the frequent (support >= minsup) subgraphs among the positive and negative graphs.
     This class provides a method to build a feature matrix for each subset.
     """
 
     def __init__(self, minsup, database, subsets):
         """
         Initialize the task.
-        :param minsup: the minimum positive support
+        :param minsup: the minimum positive and negative support
         :param database: the graph database
         :param subsets: the subsets (train and/or test sets for positive and negative class) of graph ids.
         """
@@ -76,10 +76,10 @@ class FrequentPositiveGraphs(PatternGraphs):
     def store(self, dfs_code, gid_subsets):
         self.patterns.append((dfs_code, gid_subsets))
 
-    # Prunes any pattern that is not frequent in the positive class
+    # Prunes any pattern that is not frequent in the positive and negative class
     def prune(self, gid_subsets):
-        # first subset is the set of positive ids
-        return len(gid_subsets[0]) < self.minsup
+        # first subset is the set of positive and negative ids
+        return len(gid_subsets[0]) + len(gid_subsets[1]) < self.minsup
 
     # creates a column for a feature matrix
     def create_fm_col(self, all_gids, subset_gids):
@@ -102,7 +102,7 @@ class FrequentPositiveGraphs(PatternGraphs):
         return [numpy.array(matrix).transpose() for matrix in matrices]
 
 
-def example1(database_file_name_pos, database_file_name_neg, k, minsup):
+def finding_subgraphs(database_file_name_pos, database_file_name_neg, k, minsup):
     """
     Runs gSpan with the specified positive and negative graphs, finds all frequent subgraphs in the positive class
     with a minimum positive support of minsup and prints them.
@@ -120,99 +120,15 @@ def example1(database_file_name_pos, database_file_name_neg, k, minsup):
     neg_ids = graph_database.read_graphs(database_file_name_neg)  # Reading negative graphs, adding them to database and getting ids
 
     subsets = [pos_ids, neg_ids]  # The ids for the positive and negative labelled graphs in the database
-    task = FrequentPositiveGraphs(minsup, graph_database, subsets)  # Creating task
+    task = FrequentPositiveAndNegativeGraphs(minsup, graph_database, subsets)  # Creating task
 
     gSpan(task).run()  # Running gSpan
 
     # Printing frequent patterns along with their positive support:
+	# TODO print k most confident
     for pattern, gid_subsets in task.patterns:
         pos_support = len(gid_subsets[0])  # This will have to be replaced by the confidence and support on both classes
         print('{} {}'.format(pattern, pos_support))
-
-
-def example2():
-    """
-    Runs gSpan with the specified positive and negative graphs; finds all frequent subgraphs in the training subset of
-    the positive class with a minimum support of minsup.
-    Uses the patterns found to train a naive bayesian classifier using Scikit-learn and evaluates its performances on
-    the test set.
-    Performs a k-fold cross-validation.
-    """
-
-    args = sys.argv
-    database_file_name_pos = args[1]  # First parameter: path to positive class file
-    database_file_name_neg = args[2]  # Second parameter: path to negative class file
-    minsup = int(args[3])  # Third parameter: minimum support (note: this parameter will be k in case of top-k mining)
-    nfolds = int(args[4])  # Fourth parameter: number of folds to use in the k-fold cross-validation.
-
-    if not os.path.exists(database_file_name_pos):
-        print('{} does not exist.'.format(database_file_name_pos))
-        sys.exit()
-    if not os.path.exists(database_file_name_neg):
-        print('{} does not exist.'.format(database_file_name_neg))
-        sys.exit()
-
-    graph_database = GraphDatabase()  # Graph database object
-    pos_ids = graph_database.read_graphs(database_file_name_pos)  # Reading positive graphs, adding them to database and getting ids
-    neg_ids = graph_database.read_graphs(database_file_name_neg)  # Reading negative graphs, adding them to database and getting ids
-
-    # If less than two folds: using the same set as training and test set (note this is not an accurate way to evaluate the performances!)
-    if nfolds < 2:
-        subsets = [
-            pos_ids,  # Positive training set
-            pos_ids,  # Positive test set
-            neg_ids,  # Negative training set
-            neg_ids  # Negative test set
-        ]
-        # Printing fold number:
-        print('fold {}'.format(1))
-        train_and_evaluate(minsup, graph_database, subsets)
-
-    # Otherwise: performs k-fold cross-validation:
-    else:
-        pos_fold_size = len(pos_ids) // nfolds
-        neg_fold_size = len(neg_ids) // nfolds
-        for i in range(nfolds):
-            # Use fold as test set, the others as training set for each class;
-            # identify all the subsets to be maintained by the graph mining algorithm.
-            subsets = [
-                numpy.concatenate((pos_ids[:i * pos_fold_size], pos_ids[(i + 1) * pos_fold_size:])),  # Positive training set
-                pos_ids[i * pos_fold_size:(i + 1) * pos_fold_size],  # Positive test set
-                numpy.concatenate((neg_ids[:i * neg_fold_size], neg_ids[(i + 1) * neg_fold_size:])),  # Negative training set
-                neg_ids[i * neg_fold_size:(i + 1) * neg_fold_size],  # Negative test set
-            ]
-            # Printing fold number:
-            print('fold {}'.format(i+1))
-            train_and_evaluate(minsup, graph_database, subsets)
-
-
-def train_and_evaluate(minsup, database, subsets):
-    task = FrequentPositiveGraphs(minsup, database, subsets)  # Creating task
-
-    gSpan(task).run()  # Running gSpan
-
-    # Creating feature matrices for training and testing:
-    features = task.get_feature_matrices()
-    train_fm = numpy.concatenate((features[0], features[2]))  # Training feature matrix
-    train_labels = numpy.concatenate((numpy.full(len(features[0]), 1, dtype=int), numpy.full(len(features[2]), -1, dtype=int)))  # Training labels
-    test_fm = numpy.concatenate((features[1], features[3]))  # Testing feature matrix
-    test_labels = numpy.concatenate((numpy.full(len(features[1]), 1, dtype=int), numpy.full(len(features[3]), -1, dtype=int)))  # Testing labels
-
-    classifier = naive_bayes.GaussianNB()  # Creating model object
-    classifier.fit(train_fm, train_labels)  # Training model
-
-    predicted = classifier.predict(test_fm)  # Using model to predict labels of testing data
-
-    accuracy = metrics.accuracy_score(test_labels, predicted)  # Computing accuracy:
-
-    # Printing frequent patterns along with their positive support:
-    for pattern, gid_subsets in task.patterns:
-        pos_support = len(gid_subsets[0])
-        print('{} {}'.format(pattern, pos_support))
-    # printing classification results:
-    print(predicted.tolist())
-    print('accuracy: {}'.format(accuracy))
-    print()  # Blank line to indicate end of fold.
 
 
 if __name__ == '__main__':
@@ -223,8 +139,5 @@ if __name__ == '__main__':
     # second parameter: path to negative class file
     # third parameter: size of topk
     # fourth parameter: minimum support
-    example1(args[1], args[2], k=int(args[3]), minsup=int(args[4]))
+    finding_subgraphs(args[1], args[2], k=int(args[3]), minsup=int(args[4]))
 	# test with .\Datasets\molecules-small.pos .\Datasets\molecules-small.pos 5 10
-    
-
-    # example2()
