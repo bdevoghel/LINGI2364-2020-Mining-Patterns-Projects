@@ -2,7 +2,9 @@ import os
 
 def test_finding_subgraph(recompute=True, del_output=True):
     if recompute:
-        os.system("python finding_subgraphs.py Datasets/molecules-small.pos Datasets/molecules-small.pos 5 5 > fs_test.tmp")
+        return_value = os.system("python finding_subgraphs.py Datasets/molecules-small.pos Datasets/molecules-small.pos 5 5 > fs_test.tmp")
+        if return_value != 0:
+            exit(return_value)
     
     with open('fs_test.tmp', 'r') as test:
         test_lines = [line.strip() for line in test.readlines()]
