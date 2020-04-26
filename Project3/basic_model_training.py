@@ -191,10 +191,10 @@ def train_and_evaluate(k, minsup, database, subsets):
 
     # Creating feature matrices for training and testing:
     features = task.get_feature_matrices()
-    train_fm = np.concatenate((features[0], features[2]))  # Training feature matrix
-    train_labels = np.concatenate((np.full(len(features[0]), 1, dtype=int), np.full(len(features[2]), -1, dtype=int)))  # Training labels
-    test_fm = np.concatenate((features[1], features[3]))  # Testing feature matrix
-    test_labels = np.concatenate((np.full(len(features[1]), 1, dtype=int), np.full(len(features[3]), -1, dtype=int)))  # Testing labels
+    train_fm = np.concatenate((features[0], features[1]))  # Training feature matrix
+    train_labels = np.concatenate((np.full(len(features[0]), 1, dtype=int), np.full(len(features[1]), -1, dtype=int)))  # Training labels
+    test_fm = np.concatenate((features[2], features[3]))  # Testing feature matrix
+    test_labels = np.concatenate((np.full(len(features[2]), 1, dtype=int), np.full(len(features[3]), -1, dtype=int)))  # Testing labels
 
     classifier = tree.DecisionTreeClassifier(random_state=1)  # Creating model object
     classifier.fit(train_fm, train_labels)  # Training model
