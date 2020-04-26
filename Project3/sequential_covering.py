@@ -183,11 +183,16 @@ class FrequentPositiveAndNegativeGraphs(PatternGraphs):
                 matrices[i].append(self.create_fm_col(self.gid_subsets[i], gid_subset))
         return [np.array(matrix).transpose() for matrix in matrices]
 
+def remove_patterns(database:GraphDatabase, patterns:list):
+    pass # TODO
 
-def train_and_evaluate(k, minsup, database, subsets):
-    task = FrequentPositiveAndNegativeGraphs(minsup, database, subsets, k)  # Creating task
-
-    gSpan(task).run()  # Running gSpan
+def train_and_evaluate(nb_rules, minsup, database, subsets):
+    
+    highest_scoring_patterns = []
+    for i in range(nb_rules):
+        task = FrequentPositiveAndNegativeGraphs(minsup, remove_patterns(database, highest_scoring_patterns), subsets, k=1)  # Creating task
+        gSpan(task).run()  # Running gSpan
+        #  TODO
 
     # Creating feature matrices for training and testing:
     features = task.get_feature_matrices()
@@ -203,9 +208,10 @@ def train_and_evaluate(k, minsup, database, subsets):
 
     accuracy = metrics.accuracy_score(test_labels, predicted)  # Computing accuracy:
 
-    # Printing k most confident patterns along with their confidence and total support:
-    for item in task.most_confident.get_all_sorted(reverse=True):
-        print_output(item[0], item[1], item[2])
+    # Printing rule patterns:
+    # TODO
+    # for item in task.most_confident.get_all_sorted(reverse=True):
+    #     print_output(item[0], item[1], item[2])
 
     # Printing classification results:
     print(predicted.tolist())
@@ -217,7 +223,7 @@ def print_output(conf, support, dfs_code):
     print(dfs_code, conf, support)
 
 
-def train_model(database_file_name_pos, database_file_name_neg, k, minsup, nfolds):
+def train_model(database_file_name_pos, database_file_name_neg, nb_rules, minsup, nfolds):
     """
     Runs gSpan with the specified positive and negative graphs; finds all frequent subgraphs in the training subset of
     the positive class with a minimum support of minsup.
@@ -247,7 +253,7 @@ def train_model(database_file_name_pos, database_file_name_neg, k, minsup, nfold
         ]
         # Printing fold number:
         print('fold {}'.format(1))
-        train_and_evaluate(k, minsup, graph_database, subsets)
+        train_and_evaluate(nb_rules, minsup, graph_database, subsets)
 
     # Otherwise: performs k-fold cross-validation:
     else:
@@ -264,7 +270,7 @@ def train_model(database_file_name_pos, database_file_name_neg, k, minsup, nfold
             ]
             # Printing fold number:
             print('fold {}'.format(i+1))
-            train_and_evaluate(k, minsup, graph_database, subsets)
+            train_and_evaluate(nb_rules, minsup, graph_database, subsets)
 
 
 if __name__ == '__main__':
@@ -273,7 +279,7 @@ if __name__ == '__main__':
     
     # first parameter: path to positive class file
     # second parameter: path to negative class file
-    # third parameter: size of topk
+    # third parameter: number of rules for sequential covering
     # fourth parameter: minimum support
     # fifth parameter : number of folds to use in the k-fold cross-validation.
-    train_model(args[1], args[2], k=int(args[3]), minsup=int(args[4]), nfolds=int(args[5]))
+    train_model(args[1], args[2], nb_rules=int(args[3]), minsup=int(args[4]), nfolds=int(args[5]))
