@@ -241,8 +241,8 @@ def train_model(database_file_name_pos, database_file_name_neg, k, minsup, nfold
     if nfolds < 2:
         subsets = [
             pos_ids,  # Positive training set
-            pos_ids,  # Positive test set
             neg_ids,  # Negative training set
+            pos_ids,  # Positive test set
             neg_ids  # Negative test set
         ]
         # Printing fold number:
@@ -258,8 +258,8 @@ def train_model(database_file_name_pos, database_file_name_neg, k, minsup, nfold
             # identify all the subsets to be maintained by the graph mining algorithm.
             subsets = [
                 np.concatenate((pos_ids[:i * pos_fold_size], pos_ids[(i + 1) * pos_fold_size:])),  # Positive training set
-                pos_ids[i * pos_fold_size:(i + 1) * pos_fold_size],  # Positive test set
                 np.concatenate((neg_ids[:i * neg_fold_size], neg_ids[(i + 1) * neg_fold_size:])),  # Negative training set
+                pos_ids[i * pos_fold_size:(i + 1) * pos_fold_size],  # Positive test set
                 neg_ids[i * neg_fold_size:(i + 1) * neg_fold_size],  # Negative test set
             ]
             # Printing fold number:
