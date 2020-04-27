@@ -43,10 +43,10 @@ def test_basic_model_training(recompute=True, del_output=True):
     test_correct_output("python basic_model_training.py Datasets/molecules-small.pos Datasets/molecules-small.neg 5 5 4", recompute, del_output, "Examples/task2_small_5_5_4.txt")
 
 def test_sequential_covering(recompute=True, del_output=True):
-    test_correct_output("python sequential_covering.py Datasets/molecules-small.pos Datasets/molecules-small.neg 5 5 4", recompute, del_output, "Examples/task2_small_5_5_4.txt")
+    test_correct_output("python sequential_covering.py Datasets/molecules-small.pos Datasets/molecules-small.neg 5 5 4", recompute, del_output, "Examples/task3_small_5_5_4.txt")
 
 
 if __name__ == '__main__':
-    test_finding_subgraph(recompute=True, del_output=True)
+    # test_finding_subgraph(recompute=True, del_output=True)
     # test_basic_model_training(recompute=True, del_output=True)
-    # test_sequential_covering(recompute=True, del_output=True)
+    test_sequential_covering(recompute=True, del_output=True)

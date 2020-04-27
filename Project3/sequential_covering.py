@@ -187,42 +187,41 @@ class FrequentPositiveAndNegativeGraphs(PatternGraphs):
         return [np.array(matrix).transpose() for matrix in matrices]
 
 
-def remove_patternsNOTPROTECTED(database: GraphDatabase, gid_subset):
-    newDatabase = database
-    for i in gid_subset[0]: #retirer des positives graphs ATTENTION ACCES A PROTECTED VARIABLES
-        del newDatabase._graphs[i]
-        newDatabase._graph_cnt -= 1
-    for i in gid_subset[1]: #retirer des negatives graphs ATTENTION ACCES A PROTECTED VARIABLES
-        del newDatabase._graphs[i]
-        newDatabase._graph_cnt -= 1
-    newDatabase._graphs = {int(i): v for i, v in enumerate(newDatabase._graphs.values())}
-    return newDatabase
-
-
 def train_and_evaluate(nb_rules, minsup, database, subsets):
 
-    list_subsets = []
-    for subset in subsets:
-        list_subsets.append(list(subset))
-    highest_scoring_patterns_rule = []
-    rules_gid = []
+    # Parse subsets into lists
+    list_subsets = [list(l) for l in subsets]
+
+    highest_scoring_patterns_rule = Heap()
+    rules_gid = [[] for __ in subsets]
+
     for i in range(nb_rules):
+        # Filter subset based on rules
         #current_subsets[0] = [t for t in current_subsets[0] if t not in gid_subsets[0]] --> PAS bete! de Charles
         new_subsets = []
-        for subset in list_subsets:
+        for i, subset in enumerate(list_subsets):
             new_subset = []
             for gid in subset:
-                print(gid, rules_gid)
-                if gid not in rules_gid:
+                if gid not in rules_gid[i]:
                     new_subset.append(gid)
             new_subsets.append(new_subset)
+        
         task = FrequentPositiveAndNegativeGraphs(minsup, database, new_subsets, k=1)  # Creating task
         gSpan(task).run()  # Running gSpan
-        #TODO If several patterns with the same confidence and frequency are found, you should take the lowest in the lexicographical order
-        pattern_hold_code, rule_gid = task.most_confident.pop_item()
-        highest_scoring_patterns_rule.append(pattern_hold_code)
-        rules_gid.extend(rule_gid[0])
-        rules_gid.extend(rule_gid[1])
+        
+        if task.most_confident.is_empty():
+            continue
+
+        confidence, support, pattern_code, rule_gid = task.most_confident.pop()
+        highest_scoring_patterns_rule.push( (confidence, support, pattern_code, rule_gid) )
+
+        rules_gid[0].extend(rule_gid[0])
+        rules_gid[1].extend(rule_gid[1])
+
+    task.most_confident = highest_scoring_patterns_rule
+    rules_gid[2] = subsets[2]
+    rules_gid[3] = subsets[3]
+    task.gid_subsets = rules_gid
 
     # Creating feature matrices for training and testing:
     features = task.get_feature_matrices()
@@ -238,10 +237,9 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
 
     accuracy = metrics.accuracy_score(test_labels, predicted)  # Computing accuracy:
 
-    # Printing rule patterns:
-    # TODO
-    # for item in task.most_confident.get_all_sorted(reverse=True):
-    #     print_output(item[0], item[1], item[2])
+    # Printing rule patterns
+    for item in task.most_confident.get_all_sorted(reverse=True):
+        print_output(item[0], item[1], item[2])
 
     # Printing classification results:
     print(predicted.tolist())
