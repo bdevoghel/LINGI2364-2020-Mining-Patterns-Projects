@@ -37,14 +37,15 @@ class Heap:
         return (pop[0] * self.order, pop[1] * self.order, pop[2], pop[3])
 
     def pop_item(self):
-        return self.pop()[2], self.pop()[3]
+        pop = self.pop()
+        return pop[2], pop[3]
 
     def is_empty(self):
         return self.size == 0
 
     def peek(self):
         if not self.is_empty():
-            return (self.heap[0][0] * self.order, self.heap[0][1] * self.order, self.heap[0][2], self.heap[0][3])
+            return self.heap[0][0] * self.order, self.heap[0][1] * self.order, self.heap[0][2], self.heap[0][3]
 
     def contains_confidence(self, confidence):
         for item in self.heap:
@@ -156,6 +157,8 @@ class FrequentPositiveAndNegativeGraphs(PatternGraphs):
                     new_min_conf, new_min_support, __, __ = self.most_confident.peek()
                     while new_min_conf == min_conf and new_min_support == min_support:
                         self.most_confident.pop()  # removes worst confidence
+                        if(self.most_confident.is_empty()): #Attention, si la queue est devenue vide on peut plus rien pop
+                            break
                         new_min_conf, new_min_support, __, __ = self.most_confident.peek()
                     self.min_confidence = new_min_conf
                     self.most_confident.push( (confidence, support, dfs_code, gid_subsets) )
@@ -183,16 +186,43 @@ class FrequentPositiveAndNegativeGraphs(PatternGraphs):
                 matrices[i].append(self.create_fm_col(self.gid_subsets[i], gid_subset))
         return [np.array(matrix).transpose() for matrix in matrices]
 
-def remove_patterns(database:GraphDatabase, patterns:list):
-    pass # TODO
+
+def remove_patternsNOTPROTECTED(database: GraphDatabase, gid_subset):
+    newDatabase = database
+    for i in gid_subset[0]: #retirer des positives graphs ATTENTION ACCES A PROTECTED VARIABLES
+        del newDatabase._graphs[i]
+        newDatabase._graph_cnt -= 1
+    for i in gid_subset[1]: #retirer des negatives graphs ATTENTION ACCES A PROTECTED VARIABLES
+        del newDatabase._graphs[i]
+        newDatabase._graph_cnt -= 1
+    newDatabase._graphs = {int(i): v for i, v in enumerate(newDatabase._graphs.values())}
+    return newDatabase
+
 
 def train_and_evaluate(nb_rules, minsup, database, subsets):
-    
-    highest_scoring_patterns = []
+
+    list_subsets = []
+    for subset in subsets:
+        list_subsets.append(list(subset))
+    highest_scoring_patterns_rule = []
+    rules_gid = []
     for i in range(nb_rules):
-        task = FrequentPositiveAndNegativeGraphs(minsup, remove_patterns(database, highest_scoring_patterns), subsets, k=1)  # Creating task
+        #current_subsets[0] = [t for t in current_subsets[0] if t not in gid_subsets[0]] --> PAS bete! de Charles
+        new_subsets = []
+        for subset in list_subsets:
+            new_subset = []
+            for gid in subset:
+                print(gid, rules_gid)
+                if gid not in rules_gid:
+                    new_subset.append(gid)
+            new_subsets.append(new_subset)
+        task = FrequentPositiveAndNegativeGraphs(minsup, database, new_subsets, k=1)  # Creating task
         gSpan(task).run()  # Running gSpan
-        #  TODO
+        #TODO If several patterns with the same confidence and frequency are found, you should take the lowest in the lexicographical order
+        pattern_hold_code, rule_gid = task.most_confident.pop_item()
+        highest_scoring_patterns_rule.append(pattern_hold_code)
+        rules_gid.extend(rule_gid[0])
+        rules_gid.extend(rule_gid[1])
 
     # Creating feature matrices for training and testing:
     features = task.get_feature_matrices()
