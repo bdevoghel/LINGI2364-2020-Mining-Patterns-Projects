@@ -132,8 +132,9 @@ class FrequentPositiveAndNegativeGraphs(PatternGraphs):
     def confidence(self, gid_subsets):  # not anti-monotonic
         pos_support = len(gid_subsets[0])
         neg_support = len(gid_subsets[1])
-        confidence = pos_support / (pos_support + neg_support)
-        return confidence
+        confidence_pos = pos_support / (pos_support + neg_support)
+        confidence_neg = neg_support / (pos_support + neg_support)
+        return max(confidence_pos, confidence_neg)
 
     def satisfies_minsup(self, gid_subsets):  # anti-monotonic
         pos_support = len(gid_subsets[0])
@@ -192,7 +193,7 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
     # Parse subsets into lists
     list_subsets = [list(l) for l in subsets]
 
-    highest_scoring_patterns_rule = Heap()
+    highest_scoring_patterns_rule = []
     rules_gid = [[] for __ in subsets]
 
     for i in range(nb_rules):
@@ -202,10 +203,11 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
         for i, subset in enumerate(list_subsets):
             new_subset = []
             for gid in subset:
-                if gid not in rules_gid[i]:
-                    new_subset.append(gid)
+                if gid not in rules_gid[0] and gid not in rules_gid[1]:
+                    new_subset.append(int(gid))
             new_subsets.append(new_subset)
         
+        # print(new_subsets)
         task = FrequentPositiveAndNegativeGraphs(minsup, database, new_subsets, k=1)  # Creating task
         gSpan(task).run()  # Running gSpan
         
@@ -213,15 +215,30 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
             continue
 
         confidence, support, pattern_code, rule_gid = task.most_confident.pop()
-        highest_scoring_patterns_rule.push( (confidence, support, pattern_code, rule_gid) )
+        highest_scoring_patterns_rule.append( (confidence, support, pattern_code, rule_gid) )
 
         rules_gid[0].extend(rule_gid[0])
         rules_gid[1].extend(rule_gid[1])
 
-    task.most_confident = highest_scoring_patterns_rule
+    # for default
+    new_subsets = []
+    for i, subset in enumerate(list_subsets):
+        new_subset = []
+        for gid in subset:
+            if gid not in rules_gid[0] and gid not in rules_gid[1]:
+                new_subset.append(int(gid))
+        new_subsets.append(new_subset)
+    if len(new_subsets[0]) >= len(new_subsets[1]):
+        rules_gid[0].extend(new_subsets[0])
+        rules_gid[0].extend(new_subsets[1])
+    else:
+        rules_gid[1].extend(new_subsets[0])
+        rules_gid[1].extend(new_subsets[1])
+
     rules_gid[2] = subsets[2]
     rules_gid[3] = subsets[3]
     task.gid_subsets = rules_gid
+    task.most_confident.heap = highest_scoring_patterns_rule
 
     # Creating feature matrices for training and testing:
     features = task.get_feature_matrices()
@@ -238,7 +255,7 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
     accuracy = metrics.accuracy_score(test_labels, predicted)  # Computing accuracy:
 
     # Printing rule patterns
-    for item in task.most_confident.get_all_sorted(reverse=True):
+    for item in task.most_confident.heap:
         print_output(item[0], item[1], item[2])
 
     # Printing classification results:
@@ -302,7 +319,6 @@ def train_model(database_file_name_pos, database_file_name_neg, nb_rules, minsup
 
 
 if __name__ == '__main__':
-
     args = sys.argv
     
     # first parameter: path to positive class file
