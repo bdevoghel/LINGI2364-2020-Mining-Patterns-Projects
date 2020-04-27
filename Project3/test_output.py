@@ -2,9 +2,9 @@ import os
 
 def test_correct_output(command:str, recompute, del_output, correction_file:str):
     if recompute:
-            return_value = os.system(command  +  ' > test_output.tmp')
-        if return_value != 0:
-            exit(return_value)
+        return_value = os.system(command  +  ' > test_output.tmp')
+    if return_value != 0:
+        exit(return_value)
     
     with open('test_output.tmp', 'r') as test:
         test_lines = [line.strip() for line in test.readlines()]
@@ -47,6 +47,6 @@ def test_sequential_covering(recompute=True, del_output=True):
 
 
 if __name__ == '__main__':
-    # test_finding_subgraph(recompute=True, del_output=True)
+    test_finding_subgraph(recompute=True, del_output=True)
     # test_basic_model_training(recompute=True, del_output=True)
-    test_sequential_covering(recompute=True, del_output=True)
+    # test_sequential_covering(recompute=True, del_output=True)
