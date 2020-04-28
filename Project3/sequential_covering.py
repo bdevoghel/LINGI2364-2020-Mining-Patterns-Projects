@@ -168,7 +168,7 @@ class FrequentPositiveAndNegativeGraphs(PatternGraphs):
                     pass
 
     # creates a column for a feature matrix
-    def create_fm_col(self, all_gids, subset_gids):
+    def create_fm_col(self, all_gids, subset_gids, default):
         subset_gids = set(subset_gids)
         bools = []
         for i, val in enumerate(all_gids):
@@ -176,15 +176,18 @@ class FrequentPositiveAndNegativeGraphs(PatternGraphs):
                 bools.append(1)
             else:
                 bools.append(0)
+        if default:
+            bools.append(0)
         return bools
 
     # return a feature matrix for each subset of examples, in which the columns correspond to patterns
     # and the rows to examples in the subset.
-    def get_feature_matrices(self):
+    def get_feature_matrices(self, lastLine):
         matrices = [[] for _ in self.gid_subsets]
         for confidence, support, dfs_code, gid_subsets in self.most_confident.get_all_sorted(reverse=True):
             for i, gid_subset in enumerate(gid_subsets):
-                matrices[i].append(self.create_fm_col(self.gid_subsets[i], gid_subset))
+                matrices[i].append(self.create_fm_col(self.gid_subsets[i], gid_subset, default = lastLine==0))
+                # matrices[i].append([1 for __ in self.create_fm_col(self.gid_subsets[i], gid_subset)])
         return [np.array(matrix).transpose() for matrix in matrices]
 
 
@@ -221,6 +224,7 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
         rules_gid[1].extend(rule_gid[1])
 
     # for default
+    lastLine = 0
     new_subsets = []
     for i, subset in enumerate(list_subsets):
         new_subset = []
@@ -234,6 +238,7 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
     else:
         rules_gid[1].extend(new_subsets[0])
         rules_gid[1].extend(new_subsets[1])
+        lastLine = 1
 
     rules_gid[2] = subsets[2]
     rules_gid[3] = subsets[3]
@@ -241,7 +246,9 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
     task.most_confident.heap = highest_scoring_patterns_rule
 
     # Creating feature matrices for training and testing:
-    features = task.get_feature_matrices()
+    features = task.get_feature_matrices(lastLine)
+    # print(features[0])
+    # print(features[1])
     train_fm = np.concatenate((features[0], features[1]))  # Training feature matrix
     train_labels = np.concatenate((np.full(len(features[0]), 1, dtype=int), np.full(len(features[1]), -1, dtype=int)))  # Training labels
     test_fm = np.concatenate((features[2], features[3]))  # Testing feature matrix
@@ -251,7 +258,6 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
     classifier.fit(train_fm, train_labels)  # Training model
 
     predicted = classifier.predict(test_fm)  # Using model to predict labels of testing data
-
     accuracy = metrics.accuracy_score(test_labels, predicted)  # Computing accuracy:
 
     # Printing rule patterns
