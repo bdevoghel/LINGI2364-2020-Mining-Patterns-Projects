@@ -26,11 +26,11 @@ def test_correct_output(command:str, recompute, del_output, correction_file:str)
 
     color = green if sum(wrong_lines) == 0 else red
     print(f"\033{color}Wrong lines   : {sum(wrong_lines)}\033[0;0;0m\t(present in output but not in solution)")
-    print(f"\t{[i for i in wrong_lines_i if i is not None]}")
+    print(f"\t{[i+1 for i in wrong_lines_i if i is not None]}")
 
     color = green if sum(missing_lines) == 0 else red
     print(f"\033{color}Missing lines : {sum(missing_lines)}\033[0;0;0m\t(present in solution but missing in output)")
-    print(f"\t{[i for i in missing_lines_i if i is not None]}")
+    print(f"\t{[i+1 for i in missing_lines_i if i is not None]}")
 
     if del_output:
         os.system("del test_output.tmp")
