@@ -257,23 +257,23 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
     test_labels = np.concatenate((np.full(len(features[2]), 1, dtype=int), np.full(len(features[3]), -1, dtype=int)))  # Testing labels
 
 
-    # classifier = tree.DecisionTreeClassifier(random_state=1)  # Creating model object
-    # classifier.fit(train_fm, train_labels)  # Training model
+    classifier = tree.DecisionTreeClassifier(random_state=1)  # Creating model object
+    classifier.fit(train_fm, train_labels)  # Training model
     # print(train_fm, train_labels)
-    # predicted = classifier.predict(test_fm)  # Using model to predict labels of testing data
+    predicted = classifier.predict(test_fm)  # Using model to predict labels of testing data
 
-    predicted = []
-    for test_transaction in test_fm:
-        print("test", test_transaction)
-        for i, rule in enumerate(train_fm):
-            print("rule", rule)
-            if any(np.array(rule) & np.array(test_transaction)):
-                print("ok", train_labels[i])
-                predicted.append(train_labels[i])
-                break
-        else:
-            print("not ok", 1)
-            predicted.append(1)  # default
+    # predicted = []
+    # for test_transaction in test_fm:
+    #     # print("test", test_transaction)
+    #     for i, rule in enumerate(train_fm):
+    #         # print("rule", rule)
+    #         if any(np.array(rule) & np.array(test_transaction)):
+    #             # print("ok", train_labels[i])
+    #             predicted.append(train_labels[i])
+    #             break
+    #     else:
+    #         # print("not ok", 1)
+    #         predicted.append(1)  # default
 
         # # for transaction_train in train_fm:
         # try:
@@ -298,7 +298,7 @@ def print_output(conf, support, dfs_code):
     print(dfs_code, conf, support)
 
 
-def train_model(database_file_name_pos, database_file_name_neg, nb_rules, minsup, nfolds):
+def train_model(database_file_name_pos, database_file_name_neg, nb_rules=5, minsup=5, nfolds=4):
     """
     Runs gSpan with the specified positive and negative graphs; finds all frequent subgraphs in the training subset of
     the positive class with a minimum support of minsup.
@@ -356,4 +356,4 @@ if __name__ == '__main__':
     # third parameter: number of rules for sequential covering
     # fourth parameter: minimum support
     # fifth parameter : number of folds to use in the k-fold cross-validation.
-    train_model(args[1], args[2], nb_rules=int(args[3]), minsup=int(args[4]), nfolds=int(args[5]))
+    train_model(args[1], args[2], nfolds=int(args[3]))

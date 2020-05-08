@@ -62,6 +62,9 @@ class Heap:
     def get_all_sorted(self, reverse=False):
         return [(item[0] * self.order, item[1] * self.order, item[2], item[3]) for item in sorted(self.heap, reverse=reverse)]
 
+    def get_heap(self):
+        return self.heap
+
 
 class PatternGraphs:
     """
@@ -184,7 +187,7 @@ class FrequentPositiveAndNegativeGraphs(PatternGraphs):
     # and the rows to examples in the subset.
     def get_feature_matrices(self, add_default_positive):
         matrices = [[] for _ in self.gid_subsets]
-        for confidence, support, dfs_code, gid_subsets in self.most_confident.get_all_sorted(reverse=True):
+        for confidence, support, dfs_code, gid_subsets in self.most_confident.get_heap():
             for i, gid_subset in enumerate(gid_subsets):
                 matrices[i].append(self.create_fm_col(self.gid_subsets[i], gid_subset, default = add_default_positive and i == 0))
                 # matrices[i].append([1 for __ in self.create_fm_col(self.gid_subsets[i], gid_subset)])
@@ -198,6 +201,8 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
 
     highest_scoring_patterns_rule = []
     rules_gid = [[] for __ in subsets]
+
+    rule_class = []
 
     for i in range(nb_rules):
         # Filter subset based on rules
@@ -220,10 +225,14 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
         confidence, support, pattern_code, rule_gid = task.most_confident.pop()
         highest_scoring_patterns_rule.append( (confidence, support, pattern_code, rule_gid) )
 
+        class_label = -1 if len(rule_gid[1]) > len(rule_gid[0]) else 1
+        rule_class.append(class_label)
+
         rules_gid[0].extend(rule_gid[0])
         rules_gid[1].extend(rule_gid[1])
 
     # for default
+    default_value = 1
     add_default_positive = False
     new_subsets = []
     for i, subset in enumerate(list_subsets):
@@ -240,6 +249,7 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
     else:
         rules_gid[1].extend(new_subsets[0])
         rules_gid[1].extend(new_subsets[1])
+        default_value = -1
 
 
     rules_gid[2] = subsets[2]
@@ -249,38 +259,22 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
 
     # Creating feature matrices for training and testing:
     features = task.get_feature_matrices(add_default_positive)
-    # print(features[0])
-    # print(features[1])
+
     train_fm = np.concatenate((features[0], features[1]))  # Training feature matrix
     train_labels = np.concatenate((np.full(len(features[0]), 1, dtype=int), np.full(len(features[1]), -1, dtype=int)))  # Training labels
     test_fm = np.concatenate((features[2], features[3]))  # Testing feature matrix
     test_labels = np.concatenate((np.full(len(features[2]), 1, dtype=int), np.full(len(features[3]), -1, dtype=int)))  # Testing labels
 
 
-    # classifier = tree.DecisionTreeClassifier(random_state=1)  # Creating model object
-    # classifier.fit(train_fm, train_labels)  # Training model
-    # print(train_fm, train_labels)
-    # predicted = classifier.predict(test_fm)  # Using model to predict labels of testing data
-
+    # Using sequential rules to predict labels of testing data
     predicted = []
     for test_transaction in test_fm:
-        print("test", test_transaction)
-        for i, rule in enumerate(train_fm):
-            print("rule", rule)
-            if any(np.array(rule) & np.array(test_transaction)):
-                print("ok", train_labels[i])
-                predicted.append(train_labels[i])
-                break
+        # print("test", test_transaction)
+        if 1 in test_transaction:  # if rule can classify test_transaction
+            predicted.append(rule_class[np.argmax(test_transaction)])  # argmax returns the index of the element which is the max of the list (if ties: first)
         else:
-            print("not ok", 1)
-            predicted.append(1)  # default
+            predicted.append(default_value)
 
-        # # for transaction_train in train_fm:
-        # try:
-        #     index = train_fm_list.index(transaction_test)
-        #     predicted.append(train_labels[index])
-        # except ValueError:
-        #     predicted.append(1)
 
     accuracy = np.mean([int(test_labels[i] == predicted[i]) for i in range(len(predicted))])  # Computing accuracy:
 
