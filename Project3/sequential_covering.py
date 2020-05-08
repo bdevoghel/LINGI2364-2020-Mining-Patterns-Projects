@@ -182,11 +182,11 @@ class FrequentPositiveAndNegativeGraphs(PatternGraphs):
 
     # return a feature matrix for each subset of examples, in which the columns correspond to patterns
     # and the rows to examples in the subset.
-    def get_feature_matrices(self, lastLine):
+    def get_feature_matrices(self, add_default_positive):
         matrices = [[] for _ in self.gid_subsets]
         for confidence, support, dfs_code, gid_subsets in self.most_confident.get_all_sorted(reverse=True):
             for i, gid_subset in enumerate(gid_subsets):
-                matrices[i].append(self.create_fm_col(self.gid_subsets[i], gid_subset, default = lastLine==0))
+                matrices[i].append(self.create_fm_col(self.gid_subsets[i], gid_subset, default = add_default_positive and i == 0))
                 # matrices[i].append([1 for __ in self.create_fm_col(self.gid_subsets[i], gid_subset)])
         return [np.array(matrix).transpose() for matrix in matrices]
 
@@ -224,7 +224,7 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
         rules_gid[1].extend(rule_gid[1])
 
     # for default
-    lastLine = 0
+    add_default_positive = False
     new_subsets = []
     for i, subset in enumerate(list_subsets):
         new_subset = []
@@ -240,7 +240,6 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
     else:
         rules_gid[1].extend(new_subsets[0])
         rules_gid[1].extend(new_subsets[1])
-        lastLine = 1
 
 
     rules_gid[2] = subsets[2]
@@ -249,7 +248,7 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
     task.most_confident.heap = highest_scoring_patterns_rule
 
     # Creating feature matrices for training and testing:
-    features = task.get_feature_matrices(lastLine)
+    features = task.get_feature_matrices(add_default_positive)
     # print(features[0])
     # print(features[1])
     train_fm = np.concatenate((features[0], features[1]))  # Training feature matrix
@@ -257,11 +256,21 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
     test_fm = np.concatenate((features[2], features[3]))  # Testing feature matrix
     test_labels = np.concatenate((np.full(len(features[2]), 1, dtype=int), np.full(len(features[3]), -1, dtype=int)))  # Testing labels
 
-    classifier = tree.DecisionTreeClassifier(random_state=1)  # Creating model object
-    classifier.fit(train_fm, train_labels)  # Training model
-    print(train_fm, train_labels)
 
-    predicted = classifier.predict(test_fm)  # Using model to predict labels of testing data
+    # classifier = tree.DecisionTreeClassifier(random_state=1)  # Creating model object
+    # classifier.fit(train_fm, train_labels)  # Training model
+    # print(train_fm, train_labels)
+    # predicted = classifier.predict(test_fm)  # Using model to predict labels of testing data
+    predicted = []
+    train_fm_list = list(train_fm)
+    for transaction_test in test_fm:
+        # for transaction_train in train_fm:
+        try:
+            index = train_fm_list.index(transaction_test)
+            predicted.append(train_labels[index])
+        except ValueError:
+            predicted.append(1)
+
     accuracy = metrics.accuracy_score(test_labels, predicted)  # Computing accuracy:
 
     # Printing rule patterns
@@ -269,7 +278,7 @@ def train_and_evaluate(nb_rules, minsup, database, subsets):
         print_output(item[0], item[1], item[2])
 
     # Printing classification results:
-    print(predicted.tolist())
+    print(predicted)
     print('accuracy: {}'.format(accuracy))
     print()  # Blank line to indicate end of fold.
 
