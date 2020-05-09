@@ -1,5 +1,6 @@
 import os
 import sys
+from time import time
 
 from sklearn.svm import SVC
 from sklearn import metrics
@@ -185,9 +186,13 @@ class FrequentPositiveAndNegativeGraphs(PatternGraphs):
 
 
 def train_and_evaluate(k, minsup, database, subsets):
-    task = FrequentPositiveAndNegativeGraphs(minsup, database, subsets, k)  # Creating task
 
+    start_gspan = time()
+
+    task = FrequentPositiveAndNegativeGraphs(minsup, database, subsets, k)  # Creating task
     gSpan(task).run()  # Running gSpan
+
+    end_gspan = time()
 
     # Creating feature matrices for training and testing:
     features = task.get_feature_matrices()
@@ -196,20 +201,40 @@ def train_and_evaluate(k, minsup, database, subsets):
     test_fm = np.concatenate((features[2], features[3]))  # Testing feature matrix
     test_labels = np.concatenate((np.full(len(features[2]), 1, dtype=int), np.full(len(features[3]), -1, dtype=int)))  # Testing labels
 
-    classifier = SVC(random_state=None)  # Creating model object
-    classifier.fit(train_fm, train_labels)  # Training model
+    start_classif = time()
+
+    # Creating model object
+    classifier = SVC(C=0.1,  # regularization parameter. The strength of the regularization is inversely proportional to C. Must be strictly positive
+                     kernel='rbf',  # ‘linear’, ‘poly’, ‘rbf’, ‘sigmoid’
+                     degree=3,  # degree of the polynomial kernel function (‘poly’). Ignored by all other kernels
+                     gamma='scale',  # kernel coefficient for ‘rbf’, ‘poly’ and ‘sigmoid’
+                     coef0=0.0,  # independent term in kernel function. It is only significant in ‘poly’ and ‘sigmoid’
+                     shrinking=True,  # whether to use the shrinking heuristic
+                     tol=0.0001, 
+                     cache_size=2000,  # in MB
+                     class_weight='balanced',
+                     verbose=True, 
+                     max_iter=-1, 
+                     break_ties=False, 
+                     random_state=None)
+    
+    # Training model
+    classifier.fit(train_fm, train_labels)
 
     predicted = classifier.predict(test_fm)  # Using model to predict labels of testing data
 
     accuracy = metrics.accuracy_score(test_labels, predicted)  # Computing accuracy:
 
-    # Printing k most confident patterns along with their confidence and total support:
-    for item in task.most_confident.get_all_sorted(reverse=True):
-        print_output(item[0], item[1], item[2])
+    end_classif = time()
+
+    # # Printing k most confident patterns along with their confidence and total support:
+    # for item in task.most_confident.get_all_sorted(reverse=True):
+    #     print_output(item[0], item[1], item[2])
 
     # Printing classification results:
     print(predicted.tolist())
     print('accuracy: {}'.format(accuracy))
+    print('time :   gspan {}\n       classif {}\n         total {}'.format(end_gspan - start_gspan, end_classif - start_classif, end_classif - start_gspan))
     print()  # Blank line to indicate end of fold.
 
 
@@ -217,7 +242,7 @@ def print_output(conf, support, dfs_code):
     print(dfs_code, conf, support)
 
 
-def train_model(database_file_name_pos, database_file_name_neg, k=5, minsup=5, nfolds=4):
+def train_model(database_file_name_pos, database_file_name_neg, k=30, minsup=100, nfolds=4):
     """
     Runs gSpan with the specified positive and negative graphs; finds all frequent subgraphs in the training subset of
     the positive class with a minimum support of minsup.
