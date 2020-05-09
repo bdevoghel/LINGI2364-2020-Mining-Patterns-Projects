@@ -3,6 +3,7 @@ import sys
 from time import time
 
 from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
 from sklearn import metrics
 import numpy as np
 import matplotlib as mpl
@@ -192,6 +193,8 @@ def train_and_evaluate(k, minsup, database, subsets):
     task = FrequentPositiveAndNegativeGraphs(minsup, database, subsets, k)  # Creating task
     gSpan(task).run()  # Running gSpan
 
+    train_size = task.most_confident.size
+
     end_gspan = time()
 
     # Creating feature matrices for training and testing:
@@ -204,6 +207,26 @@ def train_and_evaluate(k, minsup, database, subsets):
     start_classif = time()
 
     # Creating model object
+    """classifier = RandomForestClassifier(n_estimators=100,  # number of trees in the forest
+                                        criterion='gini', # "gini" "entropy" - function to measure the quality of a split
+                                        max_depth=log2(train_size),  #
+                                        min_samples_split=2,
+                                        min_samples_leaf=0.05,  #
+                                        min_weight_fraction_leaf=0.0,
+                                        max_features="auto",
+                                        max_leaf_nodes=None,
+                                        min_impurity_decrease=0.01,
+                                        min_impurity_split=None,
+                                        bootstrap=True,
+                                        oob_score=False,
+                                        n_jobs=-1,
+                                        random_state=None,
+                                        verbose=0,
+                                        warm_start=False,
+                                        class_weight='balanced',
+                                        ccp_alpha=0.0,  # complexity parameter used for Minimal Cost-Complexity Pruning
+                                        max_samples=None)"""
+
     classifier = SVC(C=0.1,  # regularization parameter. The strength of the regularization is inversely proportional to C. Must be strictly positive
                      kernel='rbf',  # ‘linear’, ‘poly’, ‘rbf’, ‘sigmoid’
                      degree=3,  # degree of the polynomial kernel function (‘poly’). Ignored by all other kernels
@@ -213,11 +236,11 @@ def train_and_evaluate(k, minsup, database, subsets):
                      tol=0.0001, 
                      cache_size=2000,  # in MB
                      class_weight='balanced',
-                     verbose=True, 
+                     verbose=False, 
                      max_iter=-1, 
                      break_ties=False, 
                      random_state=None)
-    
+
     # Training model
     classifier.fit(train_fm, train_labels)
 
@@ -230,9 +253,10 @@ def train_and_evaluate(k, minsup, database, subsets):
     # # Printing k most confident patterns along with their confidence and total support:
     # for item in task.most_confident.get_all_sorted(reverse=True):
     #     print_output(item[0], item[1], item[2])
+    print("Trained on", train_size, "patterns")
 
     # Printing classification results:
-    print(predicted.tolist())
+    # print(predicted.tolist())
     print('accuracy: {}'.format(accuracy))
     print('time :   gspan {}\n       classif {}\n         total {}'.format(end_gspan - start_gspan, end_classif - start_classif, end_classif - start_gspan))
     print()  # Blank line to indicate end of fold.
@@ -242,7 +266,7 @@ def print_output(conf, support, dfs_code):
     print(dfs_code, conf, support)
 
 
-def train_model(database_file_name_pos, database_file_name_neg, k=30, minsup=100, nfolds=4):
+def train_model(database_file_name_pos, database_file_name_neg, nfolds, k=None, minsup=None):
     """
     Runs gSpan with the specified positive and negative graphs; finds all frequent subgraphs in the training subset of
     the positive class with a minimum support of minsup.
@@ -261,6 +285,11 @@ def train_model(database_file_name_pos, database_file_name_neg, k=30, minsup=100
     graph_database = GraphDatabase()  # Graph database object
     pos_ids = graph_database.read_graphs(database_file_name_pos)  # Reading positive graphs, adding them to database and getting ids
     neg_ids = graph_database.read_graphs(database_file_name_neg)  # Reading negative graphs, adding them to database and getting ids
+
+    if minsup is None:
+        minsup = int(graph_database._graph_cnt * 0.1)
+    if k is None:
+        k = minsup
 
     # If less than two folds: using the same set as training and test set (note this is not an accurate way to evaluate the performances!)
     if nfolds < 2:
