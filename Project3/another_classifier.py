@@ -207,25 +207,25 @@ def train_and_evaluate(k, minsup, database, subsets):
     start_classif = time()
 
     # Creating model object
-    """classifier = RandomForestClassifier(n_estimators=100,  # number of trees in the forest
-                                        criterion='gini', # "gini" "entropy" - function to measure the quality of a split
-                                        max_depth=log2(train_size),  #
-                                        min_samples_split=2,
-                                        min_samples_leaf=0.05,  #
-                                        min_weight_fraction_leaf=0.0,
-                                        max_features="auto",
-                                        max_leaf_nodes=None,
-                                        min_impurity_decrease=0.01,
-                                        min_impurity_split=None,
-                                        bootstrap=True,
-                                        oob_score=False,
-                                        n_jobs=-1,
-                                        random_state=None,
-                                        verbose=0,
-                                        warm_start=False,
-                                        class_weight='balanced',
-                                        ccp_alpha=0.0,  # complexity parameter used for Minimal Cost-Complexity Pruning
-                                        max_samples=None)"""
+    # classifier = RandomForestClassifier(n_estimators=100,  # number of trees in the forest
+    #                                     criterion='gini', # "gini" "entropy" - function to measure the quality of a split
+    #                                     max_depth=log2(train_size),  #
+    #                                     min_samples_split=2,
+    #                                     min_samples_leaf=0.05,  #
+    #                                     min_weight_fraction_leaf=0.0,
+    #                                     max_features="auto",
+    #                                     max_leaf_nodes=None,
+    #                                     min_impurity_decrease=0.01,
+    #                                     min_impurity_split=None,
+    #                                     bootstrap=True,
+    #                                     oob_score=False,
+    #                                     n_jobs=-1,
+    #                                     random_state=None,
+    #                                     verbose=0,
+    #                                     warm_start=False,
+    #                                     class_weight='balanced',
+    #                                     ccp_alpha=0.0,  # complexity parameter used for Minimal Cost-Complexity Pruning
+    #                                     max_samples=None)
 
     classifier = SVC(C=0.1,  # regularization parameter. The strength of the regularization is inversely proportional to C. Must be strictly positive
                      kernel='rbf',  # ‘linear’, ‘poly’, ‘rbf’, ‘sigmoid’
@@ -253,11 +253,11 @@ def train_and_evaluate(k, minsup, database, subsets):
     # # Printing k most confident patterns along with their confidence and total support:
     # for item in task.most_confident.get_all_sorted(reverse=True):
     #     print_output(item[0], item[1], item[2])
-    print("Trained on", train_size, "patterns")
+    print("Trained on", train_size, "patterns, out of", task.database._graph_cnt, "transactions")
 
     # Printing classification results:
     # print(predicted.tolist())
-    print('accuracy: {}'.format(accuracy))
+    print('accuracy: \033[1;32;1m{}\033[0;0;0m'.format(accuracy))
     print('time :   gspan {}\n       classif {}\n         total {}'.format(end_gspan - start_gspan, end_classif - start_classif, end_classif - start_gspan))
     print()  # Blank line to indicate end of fold.
 
@@ -289,7 +289,7 @@ def train_model(database_file_name_pos, database_file_name_neg, nfolds, k=None, 
     if minsup is None:
         minsup = int(graph_database._graph_cnt * 0.1)
     if k is None:
-        k = minsup
+        k = int(graph_database._graph_cnt * 0.4)
 
     # If less than two folds: using the same set as training and test set (note this is not an accurate way to evaluate the performances!)
     if nfolds < 2:
